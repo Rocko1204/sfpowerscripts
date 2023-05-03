@@ -45,11 +45,7 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
         }),
         gittag: flags.boolean({
             description: messages.getMessage('gitTagFlagDescription'),
-            hidden: true,
-            deprecated: {
-                message:'--gittag is deprecated, Please utilize git tags on publish stage',
-                messageOverride: '--gittag is deprecated, Please utilize git tags on publish stage',
-            },
+            dependsOn: ['publish'],
         }),
         repourl: flags.string({
             char: 'r',
@@ -113,6 +109,32 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                 'ERROR',
                 'FATAL',
             ],
+        }),
+        //for publish command 
+        publish: flags.boolean({
+            description: messages.getMessage('publishFlagDescription'),
+        }),
+        scriptpath: flags.filepath({
+            char: 's',
+            description: messages.getMessage('scriptPathFlagDescription'),
+        }),
+        npm: flags.boolean({
+            description: messages.getMessage('npmFlagDescription'),
+            exclusive: ['scriptpath'],
+        }),
+        scope: flags.string({
+            description: messages.getMessage('scopeFlagDescription'),
+            dependsOn: ['npm'],
+            parse: async (scope) => scope.replace(/@/g, '').toLowerCase(),
+        }),
+        npmrcpath: flags.filepath({
+            description: messages.getMessage('npmrcPathFlagDescription'),
+            dependsOn: ['npm'],
+            required: false,
+        }),
+        pushgittag: flags.boolean({
+            description: messages.getMessage('gitPushTagFlagDescription'),
+            default: false,
         }),
     };
 
@@ -182,7 +204,7 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                 );
                 throw new Error('No packages to be found to be built');
             }
-
+            if(!this.flags.publish){
             SFPLogger.log(`${EOL}${EOL}`);
             SFPLogger.log('Generating Artifacts and Tags....');
 
@@ -194,6 +216,7 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                     artifactCreationErrors.push(generatedPackage.packageName);
                 }
             }
+            }  
 
             totalElapsedTime = Date.now() - executionStartTime;
 

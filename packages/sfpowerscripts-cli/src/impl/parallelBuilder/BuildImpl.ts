@@ -13,6 +13,7 @@ import SFPLogger, { COLOR_KEY_VALUE, ConsoleLogger, FileLogger, LoggerLevel, Voi
 import { COLOR_KEY_MESSAGE } from '@dxatscale/sfp-logger';
 import { COLOR_HEADER } from '@dxatscale/sfp-logger';
 import { COLOR_ERROR } from '@dxatscale/sfp-logger';
+import { COLOR_TRACE } from '@dxatscale/sfp-logger';
 import SfpPackage, { PackageType } from '@dxatscale/sfpowerscripts.core/lib/package/SfpPackage';
 import SfpPackageBuilder from '@dxatscale/sfpowerscripts.core/lib/package/SfpPackageBuilder';
 import getFormattedTime from '@dxatscale/sfpowerscripts.core/lib/utils/GetFormattedTime';
@@ -24,6 +25,8 @@ import TransitiveDependencyResolver from '@dxatscale/sfpowerscripts.core/lib/pac
 import GroupConsoleLogs from '../../ui/GroupConsoleLogs';
 import UserDefinedExternalDependency from "@dxatscale/sfpowerscripts.core/lib/project/UserDefinedExternalDependency";
 import PackageDependencyDisplayer from '@dxatscale/sfpowerscripts.core/lib/display/PackageDependencyDisplayer';
+import ArtifactGenerator from '@dxatscale/sfpowerscripts.core/lib/artifacts/generators/ArtifactGenerator';
+import Promote from '../../commands/sfpowerscripts/orchestrator/publish';
 
 
 const PRIORITY_UNLOCKED_PKG_WITH_DEPENDENCY = 1;
@@ -46,7 +49,16 @@ export interface BuildProps {
     currentStage: Stage;
     baseBranch?: string;
     diffOptions?: PackageDiffOptions;
-    includeOnlyPackages?:string[]
+    includeOnlyPackages?:string[];
+    publish?: boolean;
+    scriptpath?: string;
+    npm?: boolean;
+    artifactdir?: string;
+    tag?: string;
+    gittag?: string;
+    scope?: string;
+    npmrcpath?: string;
+    pushgittag?: boolean;
 }
 export default class BuildImpl {
     private limiter: Bottleneck;
@@ -384,7 +396,12 @@ export default class BuildImpl {
     private queueChildPackages(sfpPackage: SfpPackage): any {
         this.packagesBuilt.push(sfpPackage.packageName);
         this.printPackageDetails(sfpPackage);
-
+        if(this.props.publish){
+            SFPLogger.log(COLOR_TRACE(`${EOL}Publish flag activated. Create artifacts and publish ${sfpPackage.packageName} to Artifact Registry${EOL}`));
+            ArtifactGenerator.generateArtifact(sfpPackage, process.cwd(), this.props.artifactdir).then(() => {
+                (async () => await Promote.getInstance(this.props).promote(sfpPackage.packageName))();
+            });
+        }
         this.packagesToBeBuilt.forEach((pkg) => {
             const indexOfFulfilledParent = this.parentsToBeFulfilled[pkg]?.findIndex(
                 (parent) => parent === sfpPackage.packageName

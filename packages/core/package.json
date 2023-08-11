@@ -1,6 +1,6 @@
 {
     "name": "@dxatscale/sfpowerscripts.core",
-    "version": "33.24.1",
+    "version": "40.20.0",
     "description": "Core Module used by sfpowerscripts",
     "main": "lib/index",
     "types": "lib/index",
@@ -27,7 +27,7 @@
         "@salesforce/apex-node": "1.1.0",
         "@salesforce/command": "5.2.43",
         "@salesforce/core": "3.34.1",
-        "@salesforce/packaging": "1.2.2",
+        "@salesforce/packaging": "1.0.14",
         "@salesforce/source-deploy-retrieve": "7.7.6",
         "@salesforce/source-tracking": "2.2.17",
         "adm-zip": "^0.5.6",
@@ -82,6 +82,9 @@
     "license": "MIT",
     "bugs": {
         "url": "https://github.com/dxatscale/sfpowerscripts/issues"
+    },
+    "publishConfig":{
+        "registry": "https://git.eon-cds.de/api/v4/projects/10309/packages/npm/"
     },
     "homepage": "https://github.com/dxatscale/sfpowerscripts#readme"
 }

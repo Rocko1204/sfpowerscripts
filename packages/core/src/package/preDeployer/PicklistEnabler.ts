@@ -5,6 +5,7 @@ import { Connection } from '@salesforce/core';
 import { PreDeployer } from './PreDeployer';
 import { Schema } from 'jsforce';
 import QueryHelper from '../../queryHelper/QueryHelper';
+import lodash from 'lodash';
 
 const QUERY_BODY =
     'SELECT Id FROM FieldDefinition WHERE EntityDefinition.QualifiedApiName = ';
@@ -15,8 +16,7 @@ export default class PicklistEnabler implements PreDeployer {
 
         if (sfpPackage.packageType === PackageType.Unlocked) {
             if (
-                sfpPackage.isPickListsFound &&
-                (sfpPackage.packageDescriptor.enablePicklist == undefined || sfpPackage.packageDescriptor.enablePicklist == true)
+                sfpPackage.isPickListsFound 
             ) {
                 return true;
             }
@@ -49,7 +49,11 @@ export default class PicklistEnabler implements PreDeployer {
                 for (const fieldComponent of components) {
                     let customField = fieldComponent.parseXmlSync().CustomField;
 
-                    if (customField['type'] !== 'Picklist') {
+                    if (!customField || customField['type'] !== 'Picklist' ||  !customField.valueSet?.valueSetDefinition) {
+                        continue;
+                    }
+
+                    if(customField['fieldManageability']){
                         continue;
                     }
 
@@ -60,26 +64,28 @@ export default class PicklistEnabler implements PreDeployer {
                     let picklistValueSource = await this.getPicklistSource(customField);
 
                     let picklistInOrg = await this.getPicklistInOrg(urlId, conn);
-
+                    if(!picklistInOrg && !picklistInOrg?.Metadata?.valueSet?.valueSetDefinition) continue;
                     let picklistValueInOrg = [];
 
                     for (const value of picklistInOrg.Metadata.valueSet.valueSetDefinition.value) {
 
-                        if (value.isActive == false) {
+                        if (value.isActive == 'false') {
                             continue;
                         }
 
                         let valueInfo: { [key: string]: string } = {};
-                        valueInfo.valueName = value['valueName'];
+                        valueInfo.fullName = value['valueName'];
+                        valueInfo.default = value['default'] && value['default'] === true ? 'true' : 'false';
                         valueInfo.label = value['label'];
-                        valueInfo.default = value['default'];
                         picklistValueInOrg.push(valueInfo);
                     }
 
-                    let notChanged = await this.compareValueSet(picklistValueInOrg, picklistValueSource);
+                    let isPickListIdentical =  this.arePicklistsIdentical(picklistValueInOrg, picklistValueSource);
 
-                    if (notChanged == false) {
+                    if (!isPickListIdentical) {
                         this.deployPicklist(picklistInOrg, picklistValueSource, conn);
+                    } else {
+                        SFPLogger.log(`Picklist for custom field ${picklistInOrg.FullName} identical. No deployment`, LoggerLevel.INFO, null);
                     }
                 }
             }
@@ -93,7 +99,7 @@ export default class PicklistEnabler implements PreDeployer {
 
         let response = await QueryHelper.query<any>(urlId, conn, true);
 
-        if (response) {
+        if (response && Array.isArray(response) && response.length > 0 && response[0].attributes) {
             let responseUrl = response[0].attributes.url;
             let fieldId = responseUrl.slice(responseUrl.lastIndexOf('.') + 1);
             let responsePicklist = await conn.tooling.sobject('CustomField').find({ Id: fieldId });
@@ -104,27 +110,25 @@ export default class PicklistEnabler implements PreDeployer {
         }
     }
 
-    private async getPicklistSource(customField: any): Promise<any> {
+    private async getPicklistSource(customField: any): Promise<any[]> {
         let picklistValueSet = [];
-        let values = customField.valueSet.valueSetDefinition.value;
+        let values = customField.valueSet?.valueSetDefinition?.value;
 
-        for (const [key, value] of Object.entries(values)) {
-            let valueInfo: { [key: string]: string } = {};
-            valueInfo.valueName = value['fullName'];
-            valueInfo.label = value['label'];
-            valueInfo.default = value['default'];
-            picklistValueSet.push(valueInfo);
-          }
+        if (Array.isArray(values)) {
+            picklistValueSet.push(...values);
+        } else if(typeof values === 'object' && 'fullName' in values) {
+            picklistValueSet.push(values);
+        }
         return picklistValueSet;
     }
 
-    private async compareValueSet(picklistValueInOrg: any[], picklistValueSource: any[]): Promise<any> {
+    private arePicklistsIdentical(picklistValueInOrg: any[], picklistValueSource: any[]): boolean {
         return (
             picklistValueInOrg.length === picklistValueSource.length &&
             picklistValueInOrg.every((element_1) =>
                 picklistValueSource.some(
                     (element_2) =>
-                        element_1.valueName === element_2.valueName &&
+                        element_1.fullName === element_2.fullName &&
                         element_1.label === element_2.label &&
                         element_1.default === element_2.default
                 )
@@ -147,7 +151,14 @@ export default class PicklistEnabler implements PreDeployer {
                                 Metadata: picklistInOrg.Metadata,
                                 FullName: picklistInOrg.FullName};
 
-        await conn.tooling.sobject('CustomField').update(picklistToDeploy);
+        SFPLogger.log(`Update picklist for custom field ${picklistToDeploy.FullName}`, LoggerLevel.INFO, null);
+        try {
+            await conn.tooling.sobject('CustomField').update(picklistToDeploy);
+        } catch (error) {
+            throw new Error(
+                `Unable to update picklist for custom field ${picklistToDeploy.FullName} due to ${error.message}`
+            );
+        }
     }
 
     public getName(): string {

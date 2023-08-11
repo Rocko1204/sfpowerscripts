@@ -1,7 +1,7 @@
 {
-    "name": "sfpowerscripts",
-    "private": true,
+    "name": "@dxatscale/packages",
     "license": "MIT",
+    "version": "3.0.1",
     "scripts": {
         "format": "npx prettier --write ."
     },

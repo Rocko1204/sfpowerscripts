@@ -21,6 +21,7 @@ import { ComponentSet } from '@salesforce/source-deploy-retrieve';
 import PackageComponentPrinter from '../../display/PackageComponentPrinter';
 import DeployErrorDisplayer from '../../display/DeployErrorDisplayer';
 import { PreDeployersRegistry } from '../preDeployer/PreDeployersRegistry';
+import { AnalyzerRegistry } from './../../package/analyser/AnalyzerRegistry';
 
 export class SfpPackageInstallationOptions {
     installationkey?: string;
@@ -251,7 +252,6 @@ export abstract class InstallPackage {
                 this.sfpPackage.packageDirectory
             );
         }
-
         //run all the pre Deployers
         await this.executePreDeployers();
     }
@@ -382,6 +382,13 @@ export abstract class InstallPackage {
         let componentSet = ComponentSet.fromSource(
             path.join(this.sfpPackage.projectDirectory, this.sfpPackage.packageDirectory)
         );
+
+        //Run through all analyzers
+        let analyzers = AnalyzerRegistry.getAnalyzers();
+        for (const analyzer of analyzers) {
+            SFPLogger.log(JSON.stringify(analyzer.isEnabled),LoggerLevel.INFO, this.logger)
+            if (analyzer.isEnabled(this.sfpPackage, this.logger)) this.sfpPackage = await analyzer.analyze(this.sfpPackage,componentSet, this.logger);
+        }
 
         for (const preDeployer of PreDeployersRegistry.getPreDeployers()) {
             try {

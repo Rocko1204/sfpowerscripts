@@ -1,4 +1,4 @@
-import ApexTypeFetcher, { ApexSortedByType } from '../apex/parser/ApexTypeFetcher';
+import ApexTypeFetcher from '../apex/parser/ApexTypeFetcher';
 import ProjectConfig from '../project/ProjectConfig';
 import SfpPackageContentGenerator from './generators/SfpPackageContentGenerator';
 import SourceToMDAPIConvertor from './packageFormatConvertors/SourceToMDAPIConvertor';
@@ -16,12 +16,14 @@ import ReconcilePropertyFetcher from './propertyFetchers/ReconcileProfilePropert
 import CreateUnlockedPackageImpl from './packageCreators/CreateUnlockedPackageImpl';
 import CreateSourcePackageImpl from './packageCreators/CreateSourcePackageImpl';
 import CreateDataPackageImpl from './packageCreators/CreateDataPackageImpl';
+import ImpactedApexTestClassFetcher from '../apextest/ImpactedApexTestClassFetcher';
+import * as rimraf from 'rimraf';
+import PackageToComponent from './components/PackageToComponent';
 import lodash = require('lodash');
 import { EOL } from 'os';
 import PackageVersionUpdater from './version/PackageVersionUpdater';
 import { AnalyzerRegistry } from './analyser/AnalyzerRegistry';
 import { ComponentSet } from '@salesforce/source-deploy-retrieve';
-import CreateDiffPackageImp from './packageCreators/CreateDiffPackageImpl';
 
 export default class SfpPackageBuilder {
     public static async buildPackageFromProjectDirectory(
@@ -85,7 +87,9 @@ export default class SfpPackageBuilder {
             sfpPackage.versionNumber,
             sfpPackage.destructiveChangesPath,
             sfpPackage.configFilePath,
-            params?.pathToReplacementForceIgnore
+            params?.pathToReplacementForceIgnore,
+            params?.revisionFrom,
+            params?.revisionTo
         );
 
         sfpPackage.resolvedPackageDirectory = path.join(sfpPackage.workingDirectory, sfpPackage.packageDescriptor.path);
@@ -129,6 +133,19 @@ export default class SfpPackageBuilder {
             for (const analyzer of analyzers) {
                 if (analyzer.isEnabled(sfpPackage, logger)) sfpPackage = await analyzer.analyze(sfpPackage,componentSet, logger);
             }
+
+            //Introspect Diff Package Created
+            //On Failure.. remove diff and move on
+            try {
+                await this.introspectDiffPackageCreated(sfpPackage, params, logger);
+            } catch (error) {
+                SFPLogger.log('Failed in diff compute with ' + JSON.stringify(error), LoggerLevel.INFO, logger);
+                let workingDirectory = path.join(sfpPackage.workingDirectory, 'diff');
+                if (fs.existsSync(workingDirectory)) {
+                    rimraf.sync(workingDirectory);
+                }
+                sfpPackage.diffPackageMetadata = undefined;
+            }
         }
 
         //Create the actual package
@@ -168,17 +185,6 @@ export default class SfpPackageBuilder {
                     params
                 );
                 break;
-            case PackageType.Diff:
-                packageCreationParams.revisionFrom = params.revisionFrom;
-                packageCreationParams.revisionTo = params.revisionTo; 
-                createPackage = new CreateDiffPackageImp(
-                    sfpPackage.workingDirectory,
-                    sfpPackage,
-                    packageCreationParams,
-                    logger,
-                    params
-                );
-                break;
         }
 
         return createPackage.exec();
@@ -197,7 +203,7 @@ export default class SfpPackageBuilder {
         if (params?.packageVersionNumber) {
             sfpPackage.versionNumber = params.packageVersionNumber;
         } else if (packageCreationParams?.buildNumber) {
-            if (sfpPackage.packageType != PackageType.Unlocked) {
+            if (sfpPackage.packageType == PackageType.Source || sfpPackage.packageType == PackageType.Data) {
                 let versionUpdater: PackageVersionUpdater = new PackageVersionUpdater();
                 sfpPackage.versionNumber = versionUpdater.substituteBuildNumber(
                     sfpPackage,
@@ -229,7 +235,56 @@ export default class SfpPackageBuilder {
         return sfpPackage;
     }
 
-  
+    private static async introspectDiffPackageCreated(
+        sfpPackage: SfpPackage,
+        packageParams: SfpPackageParams,
+        logger: Logger
+    ): Promise<void> {
+        //No base branch passed in, dont create diff
+        if (!packageParams.revisionFrom) return;
+
+        let workingDirectory = path.join(sfpPackage.workingDirectory, 'diff');
+        if (fs.existsSync(workingDirectory)) {
+            let changedComponents = new PackageToComponent(
+                sfpPackage.packageName,
+                path.join(workingDirectory, sfpPackage.packageDirectory)
+            ).generateComponents();
+
+            let impactedApexTestClassFetcher: ImpactedApexTestClassFetcher = new ImpactedApexTestClassFetcher(
+                sfpPackage,
+                changedComponents,
+                logger
+            );
+            let impactedTestClasses = await impactedApexTestClassFetcher.getImpactedTestClasses();
+
+            let sourceToMdapiConvertor = new SourceToMDAPIConvertor(
+                workingDirectory,
+                sfpPackage.packageDescriptor.path,
+                ProjectConfig.getSFDXProjectConfig(workingDirectory).sourceApiVersion,
+                logger
+            );
+
+            let mdapiDirPath = (await sourceToMdapiConvertor.convert()).packagePath;
+
+            const packageManifest: PackageManifest = await PackageManifest.create(mdapiDirPath);
+
+            let diffPackageInfo: DiffPackageMetadata = {};
+            diffPackageInfo.invalidatedTestClasses = impactedTestClasses;
+            diffPackageInfo.isApexFound = packageManifest.isApexInPackage();
+            diffPackageInfo.isProfilesFound = packageManifest.isProfilesInPackage();
+            diffPackageInfo.isPermissionSetFound = packageManifest.isPermissionSetsInPackage();
+            diffPackageInfo.isPermissionSetGroupFound = packageManifest.isPermissionSetGroupsFoundInPackage();
+            diffPackageInfo.isPayLoadContainTypesSupportedByProfiles = packageManifest.isPayLoadContainTypesSupportedByProfiles();
+            diffPackageInfo.sourceVersionFrom = packageParams.revisionFrom;
+            diffPackageInfo.sourceVersionTo = packageParams.revisionTo;
+
+            diffPackageInfo.metadataCount = MetadataCount.getMetadataCount(
+                workingDirectory,
+                sfpPackage.packageDescriptor.path
+            );
+            sfpPackage.diffPackageMetadata = diffPackageInfo;
+        }
+    }
 
     private static isAllTestsToBeTriggered(sfpPackage: SfpPackage, logger: Logger) {
         if (
@@ -271,7 +326,4 @@ export class PackageCreationParams {
     isComputeDiffPackage?: boolean;
     baseBranch?: string;
     buildNumber?: string;
-    useSelectiveBuildOnly?: boolean;
-    revisionFrom?:string;
-    revisionTo?:string;
 }

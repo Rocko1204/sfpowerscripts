@@ -129,16 +129,14 @@ export default class ProjectConfig {
     public static getPackageType(
         projectConfig: any,
         sfdxPackage: string
-    ): PackageType.Unlocked | PackageType.Data | PackageType.Source | PackageType.Diff {
+    ): PackageType.Unlocked | PackageType.Data | PackageType.Source {
         let packageDescriptor = ProjectConfig.getPackageDescriptorFromConfig(sfdxPackage, projectConfig);
 
         if (projectConfig['packageAliases']?.[sfdxPackage]) {
             return PackageType.Unlocked;
         } else {
             if (packageDescriptor.type?.toLowerCase() === PackageType.Data) return PackageType.Data;
-            else if(packageDescriptor.type?.toLowerCase() === PackageType.Diff) return PackageType.Diff 
-            else
-             return PackageType.Source;
+            else return PackageType.Source;
         }
     }
 

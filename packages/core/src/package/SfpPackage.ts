@@ -43,8 +43,7 @@ class PackageInfo {
     triggers?: ApexClasses;
     configFilePath?: string;
     packageDescriptor?: any;
-    commitSHAFrom?:string;
-    commitSHATo?:string;
+    diffPackageMetadata?: DiffPackageMetadata;
     packageDirectory?: string;
     apexClassesSortedByTypes?: ApexSortedByType;
     projectConfig?: any;
@@ -58,7 +57,7 @@ export default class SfpPackage extends PackageInfo {
     public destructiveChangesPath: string;
     public resolvedPackageDirectory: string;
 
-    public version: string = '5';
+    public version: string = '4';
 
     //Just a few helpers to resolve api differene
     public get packageName(): string {
@@ -103,12 +102,11 @@ export default class SfpPackage extends PackageInfo {
     }
 }
 
-
-export enum PackageType {
-    Unlocked = "unlocked",
-    Source = "source",
-    Data = "data",
-    Diff = "diff"
+export enum PackageType
+{
+   Unlocked = "unlocked",
+   Source = "source",
+   Data =  "data"
 }
 
 export interface DiffPackageMetadata {

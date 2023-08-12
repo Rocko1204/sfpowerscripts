@@ -23,7 +23,7 @@ export default class InstallSourcePackageImpl extends InstallPackage {
     private pathToReplacementForceIgnore: string;
     private deploymentType: DeploymentType;
 
-
+    private isDiffFolderAvailable: boolean;
 
     public constructor(
         sfpPackage: SfpPackage,
@@ -35,6 +35,9 @@ export default class InstallSourcePackageImpl extends InstallPackage {
         this.options = options;
         this.pathToReplacementForceIgnore = options.pathToReplacementForceIgnore;
         this.deploymentType = options.deploymentType;
+        this.isDiffFolderAvailable =
+            options.deploymentType === DeploymentType.SELECTIVE_MDAPI_DEPLOY &&
+            fs.existsSync(path.join(this.sfpPackage.sourceDir, 'diff'));
     }
 
     public async install() {
@@ -83,7 +86,16 @@ export default class InstallSourcePackageImpl extends InstallPackage {
 
             //Make a copy.. dont mutate sourceDirectory
             let resolvedSourceDirectory = this.sfpPackage.sourceDir;
-            
+
+            if (this.isDiffFolderAvailable) {
+                SFPLogger.log(
+                    `${COLOR_SUCCESS(`Selective mode activated, Only changed components in package is deployed`)}`,
+                    LoggerLevel.INFO,
+                    this.logger
+                );
+                resolvedSourceDirectory = path.join(this.sfpPackage.sourceDir, 'diff');
+            }
+
             let emptyCheck = this.handleEmptyPackage(resolvedSourceDirectory, this.packageDirectory);
 
             if (emptyCheck.isToSkip == true) {
@@ -92,12 +104,21 @@ export default class InstallSourcePackageImpl extends InstallPackage {
                     LoggerLevel.INFO,
                     this.logger
                 );
-                return {
-                    deploy_id: `000000`,
-                    result: true,
-                    message: `Package is empty, nothing to install,skipped`,
-                };
+                return;
             } else if (emptyCheck.isToSkip == false) {
+                //Display a warning
+                if (
+                    this.deploymentType == DeploymentType.SELECTIVE_MDAPI_DEPLOY &&
+                    resolvedSourceDirectory != emptyCheck.resolvedSourceDirectory
+                ) {
+                    SFPLogger.log(
+                        `${COLOR_WARNING(
+                            `Overriding selective mode to full deployment mode as selective component calculation was not successful`
+                        )}`,
+                        LoggerLevel.INFO,
+                        this.logger
+                    );
+                }
 
                 //Create componentSet To Be Deployed
                 let componentSet = ComponentSet.fromSource(
@@ -186,7 +207,14 @@ export default class InstallSourcePackageImpl extends InstallPackage {
         //Check empty conditions
         let status = PackageEmptyChecker.isToBreakBuildForEmptyDirectory(sourceDirectory, packageDirectory, false);
 
-    
+        //On a diff deployment, we might need to deploy full as version changed or scratch org config has changed
+        //In that case lets check again with the main directory and proceed ahead with deployment
+        if (this.deploymentType == DeploymentType.SELECTIVE_MDAPI_DEPLOY && status.result == 'skip') {
+            sourceDirectory = sourceDirectory.substring(0, this.sfpPackage.sourceDir.indexOf('/diff'));
+            //Check empty conditions
+            status = PackageEmptyChecker.isToBreakBuildForEmptyDirectory(sourceDirectory, packageDirectory, false);
+        }
+
         if (status.result == 'break') {
             throw new Error('No compoments in the package, Please check your build again');
         } else if (status.result == 'skip') {
@@ -206,13 +234,12 @@ export default class InstallSourcePackageImpl extends InstallPackage {
         if (this.pathToReplacementForceIgnore) {
             this.replaceForceIgnoreInSourceDirectory(this.sfpPackage.sourceDir, this.pathToReplacementForceIgnore);
 
-           
             //Handle Diff condition
-            // if (this.isDiffFolderAvailable)
-            //     this.replaceForceIgnoreInSourceDirectory(
-            //         path.join(this.sfpPackage.sourceDir, 'diff'),
-            //         this.pathToReplacementForceIgnore
-            //     );
+            if (this.isDiffFolderAvailable)
+                this.replaceForceIgnoreInSourceDirectory(
+                    path.join(this.sfpPackage.sourceDir, 'diff'),
+                    this.pathToReplacementForceIgnore
+                );
         }
     }
 
@@ -248,6 +275,13 @@ export default class InstallSourcePackageImpl extends InstallPackage {
 
             //Handle diff for fastfeedback
             if (this.sfpPackage.isProfilesFound) {
+                if (this.isDiffFolderAvailable) {
+                    if (this.sfpPackage.diffPackageMetadata?.isProfilesFound == false)
+                        return { isReconcileActivated: false };
+                    else {
+                        sourceDirectoryPath = path.join(sourceDirectoryPath, 'diff');
+                    }
+                }
             } else {
                 return { isReconcileActivated: false };
             }
@@ -297,9 +331,19 @@ export default class InstallSourcePackageImpl extends InstallPackage {
     ) {
         //if no profile supported metadata, no point in
         //doing a reconcile
-        if (this.sfpPackage.isProfilesFound == false) return;
-        if (this.sfpPackage.isPayLoadContainTypesSupportedByProfiles == false) return;
-        
+
+        //Handle diff for fastfeedback
+        if (this.isDiffFolderAvailable) {
+            if (this.sfpPackage.diffPackageMetadata?.isProfilesFound == false) return;
+            if (this.sfpPackage.diffPackageMetadata?.isPayLoadContainTypesSupportedByProfiles == false) return;
+
+            if (this.sfpPackage.diffPackageMetadata?.isProfilesFound) {
+                sourceDirectoryPath = path.join(sourceDirectoryPath, 'diff');
+            }
+        } else {
+            if (this.sfpPackage.isProfilesFound == false) return;
+            if (this.sfpPackage.isPayLoadContainTypesSupportedByProfiles == false) return;
+        }
 
         if (profileFolders.length > 0) {
             SFPLogger.log(`Restoring original profiles for reconcile and deploy`, LoggerLevel.INFO, this.logger);

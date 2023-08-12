@@ -14,11 +14,5 @@
     "branchFlagDescription": "The git branch that this build is triggered on, Useful for metrics and general identification purposes",
     "tagFlagDescription": "Tag the build with a label, useful to identify in metrics",
     "logsGroupSymbolFlagDescription": "Symbol used by CICD platform to group/collapse logs in the console. Provide an opening group, and an optional closing group symbol.",
-    "releaseConfigFileFlagDescription":"Path to the release config file which determines what packages should be built",
-    "scriptPathFlagDescription": "Path to script that authenticates and uploaded artifacts to the registry",
-    "npmFlagDescription": "Upload artifacts to a pre-authenticated private npm registry",
-    "publishFlagDescription": "Activate publish single package version after successful build job",
-    "scopeFlagDescription": "(required for NPM) User or Organisation scope of the NPM package",
-    "npmrcPathFlagDescription": "Path to .npmrc file used for authentication to registry. If left blank, defaults to home directory",
-    "gitPushTagFlagDescription": "Pushes the git tags created by this command to the repo, ensure you have access to the repo"
+    "releaseConfigFileFlagDescription":"Path to the release config file which determines what packages should be built"
 }

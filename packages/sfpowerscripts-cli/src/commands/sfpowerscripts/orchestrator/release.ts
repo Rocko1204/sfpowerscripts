@@ -193,7 +193,9 @@ export default class Release extends SfpowerscriptsCommand {
                 directory:this.flags.directory,
             };
 
-            let releaseImpl: ReleaseImpl = new ReleaseImpl(props,new ConsoleLogger());
+            ReleaseStreamService.buildProps(props);
+
+            let releaseImpl: ReleaseImpl = new ReleaseImpl(props, new ConsoleLogger());
 
             releaseResult = await releaseImpl.exec();
 

@@ -1,7 +1,6 @@
 export default interface ReleaseDefinitionSchema {
     release: string;
     skipIfAlreadyInstalled: boolean;
-    skipArtifactUpdate:boolean;
     baselineOrg?: string;
     artifacts: {
         [p: string]: string;

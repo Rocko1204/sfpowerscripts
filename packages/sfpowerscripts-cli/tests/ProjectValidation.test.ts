@@ -184,8 +184,7 @@ describe('Given a sfdx-project.json, it should be validated against the scehma',
         }).not.toThrow();
     });
 
-    it('should not throw an error for a sfdx-project.json where various sfpowerscripts orchestrator properties are incorrectly used', () => {
-        //As the errors are moved to warning, it will not throw an error
+    it('should throw an error for a sfdx-project.json where various sfpowerscripts orchestrator properties are incorrectly used', () => {
         let sfdx_project = {
             packageDirectories: [
                 {
@@ -250,7 +249,7 @@ describe('Given a sfdx-project.json, it should be validated against the scehma',
         });
         expect(() => {
             new ProjectValidation().validateSFDXProjectJSON();
-        }).not.toThrow();
+        }).toThrow();
     });
 
     it('should not throw an package-specific error for sfdx-project.json when version number is used correctly', () => {

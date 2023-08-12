@@ -16,12 +16,12 @@ import DeploymentExecutor, { DeploySourceResult, DeploymentType } from '../../de
 import DeploySourceToOrgImpl, { DeploymentOptions } from '../../deployers/DeploySourceToOrgImpl';
 import getFormattedTime from '../../utils/GetFormattedTime';
 import { TestLevel } from '../../apextest/TestOptions';
-import { PostDeployersRegistry } from '../deploymentCustomizers/PostDeployersRegistry';
+import { PostDeployersRegistry } from '../postDeployers/PostDeployersRegistry';
 import { ComponentSet } from '@salesforce/source-deploy-retrieve';
 import PackageComponentPrinter from '../../display/PackageComponentPrinter';
 import DeployErrorDisplayer from '../../display/DeployErrorDisplayer';
-import { PreDeployersRegistry } from '../deploymentCustomizers/PreDeployersRegistry';
-import { AnalyzerRegistry } from '../../package/analyser/AnalyzerRegistry';
+import { PreDeployersRegistry } from '../preDeployer/PreDeployersRegistry';
+import { AnalyzerRegistry } from './../../package/analyser/AnalyzerRegistry';
 
 export class SfpPackageInstallationOptions {
     installationkey?: string;
@@ -72,7 +72,6 @@ export abstract class InstallPackage {
                     await this.assignPermsetsPreDeployment();
                     await this.executePreDeploymentScripts();
                     await this.setPackageDirectoryForPackage();
-                    await this.executePreDeployers();
                     await this.checkPackageDirectoryExists();
                     await this.install();
                     await this.assignPermsetsPostDeployment();
@@ -267,6 +266,8 @@ export abstract class InstallPackage {
                 this.sfpPackage.packageDirectory
             );
         }
+        //run all the pre Deployers
+        await this.executePreDeployers();
     }
 
     abstract install();
@@ -318,19 +319,54 @@ export abstract class InstallPackage {
             try {
                 if (await postDeployer.isEnabled(this.sfpPackage, this.connection, this.logger)) {
                     SFPLogger.log(
-                        `Executing Pre Deployer ${COLOR_KEY_MESSAGE(postDeployer.getName())}`,
+                        `Executing Post Deployer ${COLOR_KEY_MESSAGE(postDeployer.getName())}`,
                         LoggerLevel.INFO,
                         this.logger
                     );
-
-                    await postDeployer.execute(
+                    let modifiedPackage = await postDeployer.gatherPostDeploymentComponents(
                         this.sfpPackage,
                         componentSet,
-                        this.sfpOrg,
-                        this.logger,
-                        {apiVersion:this.options.apiVersion,waitTime:this.options.waitTime}
+                        this.connection,
+                        this.logger
                     );
 
+                    if (!modifiedPackage) continue;
+
+                    let result: DeploySourceResult;
+
+                    //Check if there are components to be deployed
+                    //Asssume its sucessfully deployed
+                    if (modifiedPackage.componentSet.getSourceComponents().toArray().length == 0) {
+                        return {
+                            deploy_id: `000000`,
+                            result: true,
+                            message: `No FHT deployment required`,
+                        };
+                    }
+
+                    //deploy the fht enabled components to the org
+                    let deploymentOptions = await postDeployer.getDeploymentOptions(
+                        this.sfpOrg.getUsername(),
+                        this.options.waitTime,
+                        this.options.apiVersion
+                    );
+
+                    //Print components inside Component Set
+                    let components = modifiedPackage.componentSet.getSourceComponents();
+                    PackageComponentPrinter.printComponentTable(components, this.logger);
+
+                    let deploySourceToOrgImpl: DeploymentExecutor = new DeploySourceToOrgImpl(
+                        this.sfpOrg,
+                        modifiedPackage.location,
+                        modifiedPackage.componentSet,
+                        deploymentOptions,
+                        this.logger
+                    );
+
+                    result = await deploySourceToOrgImpl.exec();
+                    if (!result.result) {
+                        DeployErrorDisplayer.displayErrors(result.response, this.logger);
+                    }
                 } else {
                     SFPLogger.log(
                         `Post Deployer ${COLOR_KEY_MESSAGE(postDeployer.getName())} skipped or not enabled`,
@@ -345,7 +381,7 @@ export abstract class InstallPackage {
                     this.logger
                 );
                 SFPLogger.log(
-                    `Pre Deployer ${COLOR_KEY_MESSAGE(postDeployer.getName())} skipped due to error`,
+                    `Post Deployer ${COLOR_KEY_MESSAGE(postDeployer.getName())} skipped due to error`,
                     LoggerLevel.INFO,
                     this.logger
                 );
@@ -361,17 +397,11 @@ export abstract class InstallPackage {
             path.join(this.sfpPackage.projectDirectory, this.sfpPackage.packageDirectory)
         );
 
+        //Run through all analyzers
         let analyzers = AnalyzerRegistry.getAnalyzers();
         for (const analyzer of analyzers) {
-            if(await analyzer.isEnabled(this.sfpPackage, this.logger)) 
-            {
-              SFPLogger.log(`Executing ${COLOR_KEY_MESSAGE(analyzer.getName())}`, LoggerLevel.INFO, this.logger);
-              this.sfpPackage = await analyzer.analyze(this.sfpPackage,componentSet, this.logger);
-            }
-            else
-            {
-                SFPLogger.log(`Skipped ${COLOR_KEY_MESSAGE(analyzer.getName())}`, LoggerLevel.INFO, this.logger);
-            }
+            SFPLogger.log(JSON.stringify(analyzer.isEnabled),LoggerLevel.INFO, this.logger)
+            if (analyzer.isEnabled(this.sfpPackage, this.logger)) this.sfpPackage = await analyzer.analyze(this.sfpPackage,componentSet, this.logger);
         }
 
         for (const preDeployer of PreDeployersRegistry.getPreDeployers()) {
@@ -384,11 +414,9 @@ export abstract class InstallPackage {
                     );
 
                     await preDeployer.execute(
-                        this.sfpPackage,
                         componentSet,
-                        this.sfpOrg,
-                        this.logger,
-                        {apiVersion:this.options.apiVersion,waitTime:this.options.waitTime}
+                        this.connection,
+                        this.logger
                     );
 
                 } else {

@@ -10,7 +10,7 @@ import { LoggerLevel } from '@dxatscale/sfp-logger';
 import Git from '@dxatscale/sfpowerscripts.core/lib/git/Git';
 import GitTags from '@dxatscale/sfpowerscripts.core/lib/git/GitTags';
 const retry = require('async-retry');
-const yaml = require('js-yaml');
+import yaml from 'js-yaml'
 const path = require('path');
 
 export default class ReleaseDefinitionGenerator {
@@ -182,7 +182,6 @@ export default class ReleaseDefinitionGenerator {
         let releaseDefinition: ReleaseDefinitionSchema = {
             release: this.releaseName,
             skipIfAlreadyInstalled: true,
-            skipArtifactUpdate:false,
             artifacts: artifacts,
         };
 
@@ -195,10 +194,6 @@ export default class ReleaseDefinitionGenerator {
         //override skip if already installed
         if(this.releaseDefinitionGeneratorConfigSchema.releasedefinitionProperties?.skipIfAlreadyInstalled)
           releaseDefinition.skipIfAlreadyInstalled = this.releaseDefinitionGeneratorConfigSchema.releasedefinitionProperties?.skipIfAlreadyInstalled;
-
-        //override skip artifact update
-        if(this.releaseDefinitionGeneratorConfigSchema.releasedefinitionProperties?.skipArtifactUpdate)
-            releaseDefinition.skipArtifactUpdate = this.releaseDefinitionGeneratorConfigSchema.releasedefinitionProperties?.skipArtifactUpdate;
 
         //Add changelog info
         releaseDefinition.changelog = this.releaseDefinitionGeneratorConfigSchema.releasedefinitionProperties?.changelog;

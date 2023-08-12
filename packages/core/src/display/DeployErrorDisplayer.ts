@@ -2,8 +2,6 @@ const Table = require('cli-table');
 import { CodeCoverageWarnings, DeployMessage, Failures, MetadataApiDeployStatus } from '@salesforce/source-deploy-retrieve';
 import SFPLogger, { Logger, LoggerLevel } from '@dxatscale/sfp-logger';
 import { ZERO_BORDER_TABLE } from './TableConstants';
-import { ValidateStreamService } from '../eventStream/validate';
-import { ReleaseStreamService } from '../eventStream/release';
 
 export default class DeployErrorDisplayer {
     private static printMetadataFailedToDeploy(componentFailures: DeployMessage | DeployMessage[], logger: Logger) {
@@ -21,8 +19,6 @@ export default class DeployErrorDisplayer {
                 componentFailure.problemType,
                 componentFailure.problem,
             ];
-            ValidateStreamService.buildDeployErrorsMsg(componentFailure.componentType, componentFailure.fullName, componentFailure.problemType, componentFailure.problem);
-            ReleaseStreamService.buildDeployErrorsMsg(componentFailure.componentType, componentFailure.fullName, componentFailure.problemType, componentFailure.problem);
             table.push(item);
         };
 

@@ -3,7 +3,6 @@ import Ajv from 'ajv';
 import path = require('path');
 import * as fs from 'fs-extra';
 import { PackageType } from '@dxatscale/sfpowerscripts.core/lib/package/SfpPackage';
-import SFPLogger, { LoggerLevel } from '@dxatscale/sfp-logger';
 
 export default class ProjectValidation {
     private readonly projectConfig;
@@ -31,9 +30,7 @@ export default class ProjectValidation {
                 )}`;
             });
 
-
-          SFPLogger.log(`The following attributes are not recognized by sfpowerscripts, You might need to remove them`,LoggerLevel.WARN)
-          SFPLogger.log(errorMsg, LoggerLevel.WARN);
+            throw new Error(errorMsg);
         }
     }
 

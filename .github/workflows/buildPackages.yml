@@ -40,8 +40,8 @@ jobs:
           git config --global user.name "ciuser"
 
 
-      - name: 'Install Dependencies'
-        run: npm i
+      - name: 'Bootstrap Lerna'
+        run: npx lerna bootstrap
 
 
       - name: 'Build  All  Packages'

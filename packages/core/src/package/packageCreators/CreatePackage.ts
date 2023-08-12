@@ -2,7 +2,6 @@ import SFPLogger, { COLOR_HEADER, COLOR_KEY_MESSAGE, COLOR_WARNING, Logger, Logg
 import SFPStatsSender from '../../stats/SFPStatsSender';
 import SfpPackage, { PackageType, SfpPackageParams } from '../SfpPackage';
 import { PackageCreationParams } from '../SfpPackageBuilder';
-import { BuildStreamService } from '../../eventStream/build';
 
 export abstract class CreatePackage {
     private startTime: number;
@@ -21,7 +20,6 @@ export abstract class CreatePackage {
     public async exec(): Promise<SfpPackage> {
         //Capture Start TimegetSFDXProjectConfig
         this.startTime = Date.now();
-        BuildStreamService.buildPackageStatus(this.sfpPackage.package_name, 'inprogress');
 
         //Print Header
         this.printHeader();
@@ -50,7 +48,6 @@ export abstract class CreatePackage {
 
     private sendMetricsWhenSuccessfullyCreated() {
         let elapsedTime = Date.now() - this.startTime;
-        BuildStreamService.buildPackageStatus(this.sfpPackage.package_name, 'success', elapsedTime);
 
         this.sfpPackage.creation_details = {
             creation_time: elapsedTime,
@@ -85,28 +82,20 @@ export abstract class CreatePackage {
         if (packageDescriptor.assignPermSetsPreDeployment) {
             if (packageDescriptor.assignPermSetsPreDeployment instanceof Array)
                 this.sfpPackage.assignPermSetsPreDeployment = packageDescriptor.assignPermSetsPreDeployment;
-            else {
-                BuildStreamService.sendPackageError(this.sfpPackage, `Property 'assignPermSetsPreDeployment' must be of type array`);
-                throw new Error("Property 'assignPermSetsPreDeployment' must be of type array")
-            };
+            else throw new Error("Property 'assignPermSetsPreDeployment' must be of type array");
         }
 
         if (packageDescriptor.assignPermSetsPostDeployment) {
             if (packageDescriptor.assignPermSetsPostDeployment instanceof Array)
                 this.sfpPackage.assignPermSetsPostDeployment = packageDescriptor.assignPermSetsPostDeployment;
-            else {
-                BuildStreamService.sendPackageError(this.sfpPackage, `Property 'assignPermSetsPostDeployment' must be of type array`);
-                throw new Error("Property 'assignPermSetsPostDeployment' must be of type array")
-            };
+            else throw new Error("Property 'assignPermSetsPostDeployment' must be of type array");
         }
     }
 
     private async checkWhetherProvidedPackageIsEmpty(packageDirectory: string) {
         if (await this.isEmptyPackage(this.projectDirectory, packageDirectory)) {
-            if (this.packageCreationParams.breakBuildIfEmpty){
-                BuildStreamService.sendPackageError(this.sfpPackage, `Package directory ${packageDirectory} is empty`);
+            if (this.packageCreationParams.breakBuildIfEmpty)
                 throw new Error(`Package directory ${packageDirectory} is empty`);
-            }
             else this.printEmptyArtifactWarning();
         }
     }

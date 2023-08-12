@@ -60,7 +60,7 @@ export default abstract class SfpowerscriptsCommand extends SfdxCommand {
         if (SFPLogger.logLevel > LoggerLevel.DEBUG) process.env.SFPOWERKIT_NOHEADER = 'true';
 
         //Set Query Limit to max
-        process.env.SF_ORG_MAX_QUERY_LIMIT = '50000';
+        process.env.SFDX_MAX_QUERY_LIMIT = '50000';
 
         //If demo mode, display demo reel and return
         if (process.env.SFPOWERSCRIPTS_DEMO_MODE) {
@@ -72,7 +72,11 @@ export default abstract class SfpowerscriptsCommand extends SfdxCommand {
 
         this.validateFlags();
 
-       
+        if (this.statics.requiresProject) {
+            let projectValidation = new ProjectValidation();
+            projectValidation.validateSFDXProjectJSON();
+            projectValidation.validatePackageNames();
+        }
 
         //Clear temp directory before every run
         rimraf.sync('.sfpowerscripts');
@@ -80,7 +84,15 @@ export default abstract class SfpowerscriptsCommand extends SfdxCommand {
         //Initialise StatsD
         this.initializeStatsD();
 
-       
+        //Check sfpowerkit installation
+        for (const plugin of this.config.plugins) {
+           if (plugin.name == 'sfdmu') {
+                this.isSfdmuFound = true;
+            } else if (plugin.name == '@dxatscale/sfpowerscripts') {
+                this.sfpowerscriptsConfig = plugin;
+            }
+        }
+
         if (!this.flags.json) {
             SFPLogger.log(
                 COLOR_HEADER(
@@ -89,7 +101,7 @@ export default abstract class SfpowerscriptsCommand extends SfdxCommand {
             );
             SFPLogger.log(
                 COLOR_HEADER(
-                    `sfpowerscripts  -- The DX@Scale CI/CD Orchestrator -Version:${this.config.version} -Release:${this.config.pjson.release}`
+                    `sfpowerscripts  -- The DX@Scale CI/CD Orchestrator -Version:${this.sfpowerscriptsConfig.version} -Release:${this.sfpowerscriptsConfig.pjson.release}`
                 )
             );
 
@@ -100,12 +112,12 @@ export default abstract class SfpowerscriptsCommand extends SfdxCommand {
             );
         }
 
-        if (this.statics.requiresProject) {
-            let projectValidation = new ProjectValidation();
-            projectValidation.validateSFDXProjectJSON();
-            projectValidation.validatePackageNames();
-        }
 
+        if (!process.env.DISABLE_SFDMU_CHECK) {
+            if (!this.isSfdmuFound) {
+                throw new Error('sfpowerscripts require sfdmu to function, please install sfdmu and try again!');
+            }
+        }
 
         // Execute command run code
         return await this.execute();

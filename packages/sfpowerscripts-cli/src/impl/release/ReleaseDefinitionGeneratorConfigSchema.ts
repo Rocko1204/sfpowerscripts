@@ -7,7 +7,6 @@ export default interface ReleaseDefinitionGeneratorSchema {
     includeOnlyPackageDependencies?: string[];
     releasedefinitionProperties?: {
         skipIfAlreadyInstalled: boolean;
-        skipArtifactUpdate:boolean;
         baselineOrg?: string;
         promotePackagesBeforeDeploymentToOrg?: string;
         changelog?: {

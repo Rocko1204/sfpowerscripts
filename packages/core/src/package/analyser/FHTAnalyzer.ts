@@ -7,13 +7,6 @@ import { PackageAnalyzer } from './PackageAnalyzer';
 import SFPLogger, { Logger, LoggerLevel } from '@dxatscale/sfp-logger';
 
 export default class FHTAnalyser implements PackageAnalyzer {
-   
-   public getName() {
-       return "Field History Tracking Analyzer"
-    }
-
-    
-
     public async analyze(sfpPackage: SfpPackage, componentSet:ComponentSet, logger:Logger): Promise<SfpPackage> {
         try {
 

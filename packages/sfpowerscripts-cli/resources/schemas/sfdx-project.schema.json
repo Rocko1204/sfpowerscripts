@@ -32,10 +32,11 @@
                     "releaseNotesUrl": ["package", "versionNumber"],
                     "versionDescription": ["package", "versionNumber"],
                     "versionName": ["package", "versionNumber"],
-                    "versionNumber": ["package"]
+                    "versionNumber": ["package"],
+                    "branch": ["package"]
                 },
                 "required": ["path"],
-                "additionalProperties": true,
+                "additionalProperties": false,
                 "properties": {
                     "ancestorId": {
                         "$ref": "#/definitions/packageDirectory.ancestorId"
@@ -141,8 +142,7 @@
                     },
                     "enablePicklist": {
                         "$ref": "#/definitions/packageDirectory.enablePicklist"
-                    }
-                    
+                    }                  
                 }
             }
         },
@@ -250,6 +250,9 @@
                         "type": "string"
                     },
                     "versionNumber": {
+                        "type": "string"
+                    },
+                    "branch": {
                         "type": "string"
                     }
                 }

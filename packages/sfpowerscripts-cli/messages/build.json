@@ -20,5 +20,6 @@
     "publishFlagDescription": "Activate publish single package version after successful build job",
     "scopeFlagDescription": "(required for NPM) User or Organisation scope of the NPM package",
     "npmrcPathFlagDescription": "Path to .npmrc file used for authentication to registry. If left blank, defaults to home directory",
-    "gitPushTagFlagDescription": "Pushes the git tags created by this command to the repo, ensure you have access to the repo"
+    "gitPushTagFlagDescription": "Pushes the git tags created by this command to the repo, ensure you have access to the repo",
+    "jobIdFlagDescription":"The job id of the current build job, identifier for event streams and webhooks"
 }

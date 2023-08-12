@@ -13,6 +13,7 @@ import Package2Detail from '@dxatscale/sfpowerscripts.core/lib/package/Package2D
 import InstallUnlockedPackageCollection from '@dxatscale/sfpowerscripts.core/lib/package/packageInstallers/InstallUnlockedPackageCollection';
 import FetchImpl from '../artifacts/FetchImpl';
 import GroupConsoleLogs  from '../../ui/GroupConsoleLogs';
+import { ReleaseStreamService } from '@dxatscale/sfpowerscripts.core/lib/eventStream/release';
 
 export interface ReleaseProps {
     releaseDefinitions: ReleaseDefinitionSchema[];
@@ -220,6 +221,7 @@ export default class ReleaseImpl {
                 currentStage: Stage.DEPLOY,
                 baselineOrg: releaseDefinition.baselineOrg,
                 isDryRun: this.props.isDryRun,
+                disableArtifactCommit: releaseDefinition.skipArtifactUpdate?releaseDefinition.skipArtifactUpdate:false,
                 promotePackagesBeforeDeploymentToOrg: releaseDefinition.promotePackagesBeforeDeploymentToOrg,
                 devhubUserName: this.props.devhubUserName,
             };
@@ -276,6 +278,7 @@ export default class ReleaseImpl {
                 externalPackage2s.push(dependendentPackage);
             }
             let sfpOrg = await SFPOrg.create({ aliasOrUsername: targetOrg });
+            ReleaseStreamService.buildOrgInfo(sfpOrg.getConnection().getAuthInfoFields().instanceUrl);
             let packageCollectionInstaller = new InstallUnlockedPackageCollection(sfpOrg, new ConsoleLogger());
             await packageCollectionInstaller.install(externalPackage2s, true, true);
 

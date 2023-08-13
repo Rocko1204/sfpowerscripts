@@ -25,11 +25,13 @@ import { LoggerLevel } from '@dxatscale/sfp-logger';
 import GitTags from '@dxatscale/sfpowerscripts.core/lib/git/GitTags';
 import { arrayFlagSfdxStyle, loglevel, logsgroupsymbol, optionalDevHubFlag } from '../../flags/sfdxflags';
 import { Flags } from '@oclif/core';
+import { BuildProps } from '../../../impl/parallelBuilder/BuildImpl';
 
 Messages.importMessagesDirectory(__dirname);
 const messages = Messages.loadMessages('@dxatscale/sfpowerscripts', 'publish');
 
 export default class Promote extends SfpowerscriptsCommand {
+   
     public static description = messages.getMessage('commandDescription');
 
     public static examples = [
@@ -105,7 +107,162 @@ export default class Promote extends SfpowerscriptsCommand {
     };
     private git: Git;
 
-    public async execute() {
+   /**
+   * Start of part build implementation
+   * A singleton instance can by created by other commands 
+   * As initial parameter it takes the flags of the other command
+   * Then this command publish only one package after a succesfully build job
+   * 
+   * @param flags from the build command
+   */
+    
+    private static instance: Promote;  
+    private buildProps: BuildProps; 
+
+    public static getInstance(props: BuildProps): Promote {
+        const config: any = {};
+        if(!this.instance) {
+            this.instance = new Promote([], config);
+            this.instance.buildProps = props;
+        }
+        return this.instance;
+    }
+    
+    /** 
+    *  This method promotes the pck from the build job side
+    * @param package name
+    */
+    public async promote(pck: string): Promise<void> {
+        let nPublishedArtifacts: number = 0;
+        let failedArtifacts: string[] = [];
+        //initialize the flags
+
+        let executionStartTime = Date.now();
+
+        let succesfullyPublishedPackageNamesForTagging: {
+            name: string;
+            version: string;
+            type: string;
+            tag: string;
+            commitId: string;
+        }[] = [];
+
+        let npmrcFilesToCleanup: string[] = [];
+        this.git = await Git.initiateRepo(new ConsoleLogger());
+
+        try {
+
+            let artifacts = ArtifactFetcher.findArtifacts(this.buildProps.artifactdir);
+            let artifactFilePaths = ArtifactFetcher.fetchArtifacts(this.buildProps.artifactdir);
+
+            // Pattern captures two named groups, the "package" name and "version" number
+            let pattern = new RegExp('(?<package>^.*)(?:_sfpowerscripts_artifact_)(?<version>.*)(?:\\.zip)');
+            for (let artifact of artifacts) {
+                let packageName: string;
+                let packageVersionNumber: string;
+
+                let match: RegExpMatchArray = path.basename(artifact).match(pattern);
+
+                if (match !== null) {
+                    packageName = match.groups.package;
+                    if(packageName !== pck){
+                        // Skip if package name doesn't match
+                        continue;
+                    }
+                    packageVersionNumber = match.groups.version;
+                } else {
+                    // artifact filename doesn't match pattern
+                    continue;
+                }
+
+                let sfpPackage = await this.getPackageInfo(artifactFilePaths, packageName, packageVersionNumber);
+
+                let packageType = sfpPackage.package_type;
+
+                try {
+                    if (this.buildProps.npm) {
+                        await this.publishUsingNpm(sfpPackage, packageVersionNumber, npmrcFilesToCleanup);
+                    } else {
+                        await this.publishUsingScript(packageName, packageVersionNumber, artifact);
+                    }
+
+                    succesfullyPublishedPackageNamesForTagging.push({
+                        name: packageName,
+                        version: packageVersionNumber.replace('-', '.'),
+                        type: packageType,
+                        tag: `${packageName}_v${packageVersionNumber.replace('-', '.')}`,
+                        commitId: sfpPackage.sourceVersion
+                    });
+
+                    nPublishedArtifacts++;
+                } catch (err) {
+                    failedArtifacts.push(`${packageName} v${packageVersionNumber}`);
+                    SFPLogger.log(err.message);
+                    process.exitCode = 1;
+                }
+            }
+
+            if (this.buildProps.gittag) {
+                await this.createGitTags(succesfullyPublishedPackageNamesForTagging);
+                await this.pushGitTags(succesfullyPublishedPackageNamesForTagging);
+            }
+
+        } catch (err) {
+            SFPLogger.log(err.message);
+
+            // Fail the task when an error occurs
+            process.exitCode = 1;
+        } finally {
+            if (npmrcFilesToCleanup.length > 0) {
+                npmrcFilesToCleanup.forEach((npmrcFile) => {
+                    fs.unlinkSync(npmrcFile);
+                });
+            }
+
+            let totalElapsedTime: number = Date.now() - executionStartTime;
+
+            SFPLogger.log(
+                COLOR_HEADER(
+                    `----------------------------------------------------------------------------------------------------`
+                )
+            );
+            SFPLogger.log(
+                COLOR_SUCCESS(
+                    `${nPublishedArtifacts} artifacts published in ${COLOR_TIME(
+                        getFormattedTime(totalElapsedTime)
+                    )} with {${COLOR_ERROR(failedArtifacts.length)}} errors`
+                )
+            );
+
+            if (failedArtifacts.length > 0) {
+                SFPLogger.log(COLOR_ERROR(`Packages Failed to Publish`, failedArtifacts));
+            }
+            SFPLogger.log(
+                COLOR_HEADER(
+                    `----------------------------------------------------------------------------------------------------`
+                )
+            );
+
+            let tags = {
+                publish_promoted_only: 'false'
+            };
+
+            if (this.buildProps.tag != null) {
+                tags['tag'] = this.buildProps.tag;
+            }
+
+            SFPStatsSender.logGauge('publish.duration', totalElapsedTime, tags);
+
+            SFPStatsSender.logGauge('publish.succeeded', nPublishedArtifacts, tags);
+
+            if (failedArtifacts.length > 0) {
+                SFPStatsSender.logGauge('publish.failed', failedArtifacts.length, tags);
+            }
+        }
+    }
+    /* End of Part Build Call */
+
+    public async execute() {    
         let nPublishedArtifacts: number = 0;
         let failedArtifacts: string[] = [];
 
@@ -265,8 +422,8 @@ export default class Promote extends SfpowerscriptsCommand {
 
         //Check whether the user has already passed in @
 
-        if (this.flags.scope) {
-            let scope: string = this.flags.scope.replace(/@/g, '').toLowerCase();
+        if (this.flags?.scope || this.buildProps?.scope) {
+            let scope: string = this.flags?.scope ? this.flags.scope.replace(/@/g, '').toLowerCase() : this.buildProps?.scope.replace(/@/g, '').toLowerCase();
             name = `@${scope}/` + name;
         }
 
@@ -278,8 +435,8 @@ export default class Promote extends SfpowerscriptsCommand {
 
         fs.writeFileSync(path.join(artifactRootDirectory, 'package.json'), JSON.stringify(packageJson, null, 4));
 
-        if (this.flags.npmrcpath) {
-            fs.copyFileSync(this.flags.npmrcpath, path.join(artifactRootDirectory, '.npmrc'));
+        if (this.flags?.npmrcpath || this.buildProps?.npmrcpath) {
+            fs.copyFileSync(this.flags?.npmrcpath ? this.flags.npmrcpath : this.buildProps?.npmrcpath, path.join(artifactRootDirectory, '.npmrc'));
 
             npmrcFilesToCleanup.push(path.join(artifactRootDirectory, '.npmrc'));
         }
@@ -330,6 +487,7 @@ export default class Promote extends SfpowerscriptsCommand {
             throw new Error(`Script path ${this.flags.scriptpath} does not exist`);
 
         if (this.flags.npm && !this.flags.scope) throw new Error('--scope parameter is required for NPM');
+        if (this.buildProps.npm && !this.buildProps.npmrcpath) throw new Error('--scope parameter is required for NPM');
     }
 
     private async pushGitTags(
@@ -342,7 +500,7 @@ export default class Promote extends SfpowerscriptsCommand {
         }[]
     ) {
 
-        if (this.flags.pushgittag) {
+        if (this.flags?.pushgittag || this.buildProps?.pushgittag) {
             let tagsForPushing:string[]=[];
             for (let succesfullyPublishedPackage of sucessfullyPublishedPackages) {
                 SFPLogger.log(COLOR_KEY_MESSAGE(`Pushing Git Tags to Repo ${succesfullyPublishedPackage.tag}`));

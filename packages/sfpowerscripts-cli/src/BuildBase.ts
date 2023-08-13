@@ -94,6 +94,32 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
             char: 'j',
             description: messages.getMessage('jobIdFlagDescription'),
         }),
+        //for publish command 
+        publish: Flags.boolean({
+            description: messages.getMessage('publishFlagDescription'),
+        }),
+        scriptpath: Flags.file({
+            char: 's',
+            description: messages.getMessage('scriptPathFlagDescription'),
+        }),
+        npm: Flags.boolean({
+            description: messages.getMessage('npmFlagDescription'),
+            exclusive: ['scriptpath'],
+        }),
+        scope: Flags.string({
+            description: messages.getMessage('scopeFlagDescription'),
+            dependsOn: ['npm'],
+            parse: async (scope) => scope.replace(/@/g, '').toLowerCase(),
+        }),
+        npmrcpath: Flags.file({
+            description: messages.getMessage('npmrcPathFlagDescription'),
+            dependsOn: ['npm'],
+            required: false,
+        }),
+        pushgittag: Flags.boolean({
+            description: messages.getMessage('gitPushTagFlagDescription'),
+            default: false,
+        }),
     };
 
     public async execute() {
@@ -159,7 +185,7 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                 BuildStreamService.buildStatus('failed','No packages to be found to be built')
                 throw new Error('No packages to be found to be built');
             }
-
+            if(!this.flags.publish){
             SFPLogger.log(`${EOL}${EOL}`);
             SFPLogger.log('Generating Artifacts and Tags....');
 
@@ -171,6 +197,7 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                     artifactCreationErrors.push(generatedPackage.packageName);
                 }
             }
+            }  
 
             totalElapsedTime = Date.now() - executionStartTime;
 

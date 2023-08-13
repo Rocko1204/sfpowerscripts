@@ -35,6 +35,15 @@ export default class Build extends BuildBase {
                 skipPackageDescriptorChange: false,
             },
             jobId: this.flags.jobid ?? Date.now().toString(),
+            publish: this.flags.publish,
+            scriptpath: this.flags.scriptpath,
+            npm: this.flags.npm,
+            artifactdir: this.flags.artifactdir,
+            tag: this.flags.tag,
+            gittag: this.flags.gittag,
+            scope: this.flags.scope,
+            npmrcpath: this.flags.npmrcpath,
+            pushgittag: this.flags.pushgittag,
         };
         return buildProps;
     }

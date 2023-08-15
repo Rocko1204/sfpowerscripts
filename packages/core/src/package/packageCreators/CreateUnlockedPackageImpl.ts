@@ -149,7 +149,7 @@ export default class CreateUnlockedPackageImpl extends CreatePackage {
                     errorMessage = 'Creation errors: ';
                     for (let i = 0; i < errors.length; i++) {
                         errorMessage += `\n${i + 1}) ${errors[i]}`;
-                        BuildStreamService.sendPackageError(this.sfpPackage,errors[i])
+                        BuildStreamService.sendPackageError(this.sfpPackage,errors[i],true)
                     }
                 }
                 throw new Error(`Unable to create ${this.sfpPackage.packageName} due to \n` + errorMessage);

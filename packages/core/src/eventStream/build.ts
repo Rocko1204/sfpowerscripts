@@ -10,9 +10,10 @@ export class BuildStreamService {
         BuildLoggerBuilder.getInstance().buildPackageInitialitation(pck, reason, tag);
     }
 
-    public static sendPackageError(sfpPackage: SfpPackage, message: string): void {
+    public static sendPackageError(sfpPackage: SfpPackage, message: string, isEvent?: boolean): void {
         const file = BuildLoggerBuilder.getInstance().buildPackageError(sfpPackage, message).build();
         //EventService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
+        if(!isEvent)
         HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
     }
 
@@ -118,7 +119,7 @@ class BuildLoggerBuilder {
 
     buildPackageInitialitation(pck: string, reason: string, tag: string): BuildLoggerBuilder {
         this.file.payload.events[pck] = {
-            event: 'sfpowerscripts.build.awaiting',
+            event: 'sfpowerscripts.build.progress',
             context: {
                 command: 'sfpowerscript:orchestrator:build',
                 eventId: `${this.file.jobId}_${Date.now().toString()}`,
@@ -144,6 +145,7 @@ class BuildLoggerBuilder {
                 packageDependencies: [],
             },
         };
+        HookService.getInstance().logEvent(this.file.payload.events[pck]);
         return this;
     }
 

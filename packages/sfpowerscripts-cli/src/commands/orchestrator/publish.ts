@@ -25,7 +25,7 @@ import { LoggerLevel } from '@dxatscale/sfp-logger';
 import GitTags from '@dxatscale/sfpowerscripts.core/lib/git/GitTags';
 import { arrayFlagSfdxStyle, loglevel, logsgroupsymbol, optionalDevHubFlag } from '../../flags/sfdxflags';
 import { Flags } from '@oclif/core';
-import { BuildProps } from '../../../impl/parallelBuilder/BuildImpl';
+import { BuildProps } from '../../impl/parallelBuilder/BuildImpl';
 
 Messages.importMessagesDirectory(__dirname);
 const messages = Messages.loadMessages('@dxatscale/sfpowerscripts', 'publish');

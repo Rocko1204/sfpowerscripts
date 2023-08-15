@@ -34,7 +34,7 @@ export class ReleaseStreamService {
     public static sendPackageSuccess(sfpPackage: SfpPackage): void {
         const file = ReleaseLoggerBuilder.getInstance().buildPackageCompleted(sfpPackage).build();
         //EventService.getInstance().logEvent(file.payload.events[sfpPackage.packageName]);
-        HookService.getInstance().logEvent(file.payload.events[sfpPackage.packageName])
+       HookService.getInstance().logEvent(file.payload.events[sfpPackage.packageName]);
 
     }
 
@@ -139,7 +139,7 @@ class ReleaseLoggerBuilder {
                 command: 'sfpowerscript:orchestrator:release',
                 instanceUrl: this.file.payload.instanceUrl,
                 timestamp: new Date(),
-                jobId: '',
+                jobId: this.file.jobId,
                 eventId: `${this.file.jobId}_${Date.now().toString()}`
             },
             metadata: {

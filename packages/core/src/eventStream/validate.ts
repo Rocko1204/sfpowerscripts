@@ -31,12 +31,12 @@ export class ValidateStreamService {
 
     public static sendPackageError(pck: string, message: string): void {
         const file = ValidateLoggerBuilder.getInstance().buildPackageError(pck, message).build();
-        EventService.getInstance().logEvent(file.payload.events[pck]);
+        //EventService.getInstance().logEvent(file.payload.events[pck]);
     }
 
     public static sendPackageSuccess(sfpPackage: SfpPackage): void {
         const file = ValidateLoggerBuilder.getInstance().buildPackageCompleted(sfpPackage).build();
-        EventService.getInstance().logEvent(file.payload.events[sfpPackage.packageName]);
+        //EventService.getInstance().logEvent(file.payload.events[sfpPackage.packageName]);
     }
 
     public static buildDeployErrorsMsg(
@@ -78,13 +78,13 @@ export class ValidateStreamService {
     }
 
     public static startServer(): void {
-        EventService.getInstance();
+        //EventService.getInstance();
     }
 
     public static closeServer(): void {
         const file = ValidateLoggerBuilder.getInstance().build();
         HookService.getInstance().logEvent(file);
-        EventService.getInstance().closeServer();
+        //EventService.getInstance().closeServer();
     }
 }
 

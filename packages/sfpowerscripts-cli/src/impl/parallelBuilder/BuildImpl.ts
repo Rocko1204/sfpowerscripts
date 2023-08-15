@@ -40,7 +40,7 @@ import UserDefinedExternalDependency from "@dxatscale/sfpowerscripts.core/lib/pr
 import PackageDependencyDisplayer from "@dxatscale/sfpowerscripts.core/lib/display/PackageDependencyDisplayer";
 import { BuildStreamService } from '@dxatscale/sfpowerscripts.core/lib/eventStream/build';
 import ArtifactGenerator from '@dxatscale/sfpowerscripts.core/lib/artifacts/generators/ArtifactGenerator';
-import Promote from '../../commands/sfpowerscripts/orchestrator/publish';
+import Promote from '../../commands/orchestrator/publish';
 
 const PRIORITY_UNLOCKED_PKG_WITH_DEPENDENCY = 1;
 const PRIORITY_UNLOCKED_PKG_WITHOUT_DEPENDENCY = 3;

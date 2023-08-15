@@ -86,10 +86,10 @@ export default class DeployImpl {
         let packagesToPackageInfo: { [p: string]: PackageInfo };
         try {
             //Create Org
-            this.targetOrg = await SFPOrg.create({ aliasOrUsername: this.props.targetUsername });
-
+                        this.targetOrg = await SFPOrg.create({ aliasOrUsername: this.props.targetUsername });
+                
             let artifacts = ArtifactFetcher.fetchArtifacts(this.props.artifactDir, null, this.props.logger);
-
+            
             if (artifacts.length === 0) throw new Error(`No artifacts to deploy found in ${this.props.artifactDir}`);
 
             //Convert artifacts to SfpPackages

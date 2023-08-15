@@ -96,6 +96,10 @@ export default class Release extends SfpowerscriptsCommand {
                 message: '--allowunpromotedpackages is deprecated, All packages are allowed',
              },
         }),
+        jobid: Flags.string({
+            char: 'j',
+            description: messages.getMessage('jobIdFlagDescription'),
+        }),
         devhubalias: optionalDevHubFlag,
         loglevel
     };
@@ -103,6 +107,7 @@ export default class Release extends SfpowerscriptsCommand {
     public async execute() {
         this.validateFlags();
         ReleaseStreamService.startServer();
+        ReleaseStreamService.buildJobId(this.flags.jobid ?? Date.now().toString());
 
         let tags = {
             targetOrg: this.flags.targetorg,
@@ -166,8 +171,7 @@ export default class Release extends SfpowerscriptsCommand {
             };
 
             ReleaseStreamService.buildProps(props);
-            ReleaseStreamService.buildJobId(this.flags.jobid ?? Date.now().toString());
-
+            
             let releaseImpl: ReleaseImpl = new ReleaseImpl(props, new ConsoleLogger());
 
             releaseResult = await releaseImpl.exec();

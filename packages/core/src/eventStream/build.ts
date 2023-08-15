@@ -3,9 +3,7 @@ import { PROCESSNAME, BuildProps, BuildHookSchema, BuildPackageDependencies } fr
 import SfpPackage from '../package/SfpPackage';
 import { EventService } from './event';
 import { HookService } from './hooks';
-import dotenv from 'dotenv';
 
-dotenv.config();
 
 export class BuildStreamService {
     public static buildPackageInitialitation(pck: string, reason: string, tag: string): void {

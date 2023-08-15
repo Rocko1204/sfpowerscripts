@@ -15,7 +15,7 @@ export default class ArtifactFetcher {
      */
     public static fetchArtifacts(artifactDirectory: string, sfdx_package?: string, logger?: Logger): Artifact[] {
         let result: Artifact[] = [];
-
+        
         if (!fs.existsSync(artifactDirectory)) {
             throw new Error(`Artifact directory ${path.resolve(artifactDirectory)} does not exist`);
         }

@@ -197,12 +197,12 @@ export default class ReleaseImpl {
         releaseDefinitions: ReleaseDefinitionSchema[]
     ): Promise<{ releaseDefinition: ReleaseDefinitionSchema; result: DeploymentResult }[]> {
         let deploymentResults: { releaseDefinition: ReleaseDefinitionSchema; result: DeploymentResult }[] = [];
-        for (const releaseDefinition of releaseDefinitions) {
+                for (const releaseDefinition of releaseDefinitions) {
             let groupSection = new GroupConsoleLogs(`Release ${releaseDefinition.release}`).begin();
             SFPLogger.log(EOL);
 
             this.displayReleaseInfo(releaseDefinition, this.props);
-
+            
             //Each release will be downloaded to specific subfolder inside the provided artifact directory
             //As each release is a collection of artifacts
             let revisedArtifactDirectory = path.join(
@@ -234,7 +234,7 @@ export default class ReleaseImpl {
             //Don't continue deployments if a release breaks in between
             if (deploymentResult.failed.length > 0) break;
         }
-
+        
         return deploymentResults;
     }
 
@@ -278,7 +278,7 @@ export default class ReleaseImpl {
                 externalPackage2s.push(dependendentPackage);
             }
             let sfpOrg = await SFPOrg.create({ aliasOrUsername: targetOrg });
-            ReleaseStreamService.buildOrgInfo(sfpOrg.getConnection().getAuthInfoFields().instanceUrl);
+                        ReleaseStreamService.buildOrgInfo(sfpOrg.getConnection().getAuthInfoFields().instanceUrl);
             let packageCollectionInstaller = new InstallUnlockedPackageCollection(sfpOrg, new ConsoleLogger(),this.props.isDryRun);
             await packageCollectionInstaller.install(externalPackage2s, true, true);
 

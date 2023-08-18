@@ -183,12 +183,13 @@ export default class Release extends SfpowerscriptsCommand {
                 ReleaseStreamService.buildCommandError(err.message);
             } else {
                 SFPLogger.log(err.message);
+            }
                 ReleaseStreamService.buildCommandError(err.message);
                 SFPStatsSender.logCount('release.failed', tags);
 
                 // Fail the task when an error occurs
                 process.exitCode = 1;
-            }
+            
         } finally {
             let totalElapsedTime: number = Date.now() - executionStartTime;
 

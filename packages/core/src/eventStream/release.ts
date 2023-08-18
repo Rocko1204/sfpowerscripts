@@ -216,7 +216,7 @@ class ReleaseLoggerBuilder {
 
     buildDeployErrorsMsg(deployError: ReleaseDeployError): ReleaseLoggerBuilder {
         Object.values(this.file.payload.events).forEach((value) => {
-            if (value.event === 'sfpowerscripts.release.awaiting') {
+            if (value.event === 'sfpowerscripts.release.awaiting' || value.event === 'sfpowerscripts.release.failed') {
                 value.metadata.deployErrors.push(deployError);
             }
         });
@@ -225,7 +225,7 @@ class ReleaseLoggerBuilder {
 
     buildDeployErrorsPkg(pck: string): ReleaseLoggerBuilder {
         Object.values(this.file.payload.events).forEach((value) => {
-            if (value.event === 'sfpowerscripts.release.awaiting' || value.event === 'sfpowerscripts.release.progress') {
+            if (value.event === 'sfpowerscripts.release.awaiting' || value.event === 'sfpowerscripts.release.progress' || value.event === 'sfpowerscripts.release.failed') {
                 for (const err of value.metadata.deployErrors) {
                     err.package = pck;
                 }

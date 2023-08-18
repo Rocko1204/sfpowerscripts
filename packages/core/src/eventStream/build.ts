@@ -33,10 +33,10 @@ export class BuildStreamService {
         BuildLoggerBuilder.getInstance().buildPackageCurrentlyProcessedList(pck);
     }
 
-    public static async sendPackageCompletedInfos(sfpPackage: SfpPackage): Promise<void> {
+    public static sendPackageCompletedInfos(sfpPackage: SfpPackage): void {
         const file = BuildLoggerBuilder.getInstance().buildPackageCompletedInfos(sfpPackage).build();
         //EventService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
-        await HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
+        HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
     }
 
     public static buildPackageDependencies(pck: string, dependencies: BuildPackageDependencies): void {
@@ -208,6 +208,15 @@ class BuildLoggerBuilder {
     buildStatus(status: 'inprogress' | 'success' | 'failed', message: string): BuildLoggerBuilder {
         this.file.payload.status = status;
         this.file.payload.message = message;
+        if(status === 'failed'){
+            Object.values(this.file.payload.events).forEach((value) => {
+            if (value.event === 'sfpowerscripts.build.awaiting' || value.event === 'sfpowerscripts.build.progress') {
+                value.metadata.message.push(message);
+                value.event = 'sfpowerscripts.build.failed';
+                HookService.getInstance().logEvent(this.file.payload.events[value.metadata.package]);
+            }
+        });
+        }
         return this;
     }
 

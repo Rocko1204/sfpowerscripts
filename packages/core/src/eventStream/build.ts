@@ -63,7 +63,7 @@ export class BuildStreamService {
         BuildLoggerBuilder.getInstance().buildPackageStatus(pck, status, elapsedTime);
     }
 
-    public static buildJobAndOrgId(jobId: string,orgId: string, ): void {
+    public static buildJobAndOrgId(jobId: string,orgId: string ): void {
         BuildLoggerBuilder.getInstance().buildOrgAndJobId(orgId, jobId);
     }
 

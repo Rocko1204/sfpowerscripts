@@ -385,6 +385,18 @@ export interface ReleaseProps {
     directory: string;
 }
 
+export interface GitEvent__c {
+    Name: string;
+    Command__c: string;
+    EventId__c: string;
+    InstanceUrl__c: string;
+    JobTimestamp__c: Date;
+    EventName__c: string;
+    Package__c: string;
+    Message__c: string;
+    DeployError__c: string;
+}
+
 export default interface ReleaseDefinitionSchema {
     release: string;
     skipIfAlreadyInstalled: boolean;

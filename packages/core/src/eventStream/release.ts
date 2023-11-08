@@ -134,7 +134,7 @@ class ReleaseLoggerBuilder {
         type: string
     ): ReleaseLoggerBuilder {
         this.file.payload.events[pck] = {
-            event: 'sfpowerscripts.release.awaiting',
+            event: 'sfpowerscripts.release.progress',
             context: {
                 command: 'sfpowerscript:orchestrator:release',
                 instanceUrl: this.file.payload.instanceUrl,
@@ -169,6 +169,7 @@ class ReleaseLoggerBuilder {
             },
             orgId: '',
         };
+        HookService.getInstance().logEvent(this.file.payload.events[pck]);
         return this;
     }
 

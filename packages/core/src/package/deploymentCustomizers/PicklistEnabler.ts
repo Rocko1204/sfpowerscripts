@@ -80,14 +80,16 @@ export default class PicklistEnabler implements DeploymentCustomizer {
                     let picklistValueInOrg = [];
 
                     for (const value of picklistInOrg.Metadata.valueSet.valueSetDefinition.value) {
-                        if (value.isActive == 'false') {
+                        if (value.isActive == false) {
                             continue;
                         }
 
                         let valueInfo: { [key: string]: string } = {};
                         valueInfo.fullName = value['valueName'];
-                        valueInfo.label = value['label'];
+                        decodeURIComponent(valueInfo.fullName);
                         valueInfo.default = value['default'] && value['default'] === true ? 'true' : 'false';
+                        valueInfo.label = value['label'];
+                        decodeURIComponent(valueInfo.label);
                         picklistValueInOrg.push(valueInfo);
                     }
 
@@ -116,8 +118,8 @@ export default class PicklistEnabler implements DeploymentCustomizer {
     }
 
     private async getPicklistInOrg(urlId: string, conn: Connection): Promise<any> {
-        let response = await QueryHelper.query<any>(urlId, conn, true);
-
+        let records = await conn.query(urlId);
+        let response = records.records;
         if (response && Array.isArray(response) && response.length > 0 && response[0].attributes) {
             let responseUrl = response[0].attributes.url;
             let fieldId = responseUrl.slice(responseUrl.lastIndexOf('.') + 1);
@@ -141,15 +143,24 @@ export default class PicklistEnabler implements DeploymentCustomizer {
         throw new Error('Method not implemented.');
     }
 
-    private async getPicklistSource(customField: any): Promise<any> {
+    private async getPicklistSource(customField: any): Promise<any[]> {
         let picklistValueSet = [];
         let values = customField.valueSet?.valueSetDefinition?.value;
-        //only push values when picklist > 1 or exactly 1 value
+
         if (Array.isArray(values)) {
-            picklistValueSet.push(...values);
+            for (const value of values) {
+                if (!value?.isActive || value?.isActive == 'true') {
+                    picklistValueSet.push({
+                        fullName: value['fullName'] ? decodeURI(value['fullName']) : value['fullName'],
+                        default: value.default,
+                        label: value['label'] ? decodeURI(value['label']) : value['label']
+                    });
+                }
+            }
         } else if (typeof values === 'object' && 'fullName' in values) {
             picklistValueSet.push(values);
         }
+
         return picklistValueSet;
     }
 

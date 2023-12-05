@@ -13,8 +13,8 @@ export class BuildStreamService {
     public static sendPackageError(sfpPackage: SfpPackage, message: string, isEvent?: boolean): void {
         const file = BuildLoggerBuilder.getInstance().buildPackageError(sfpPackage, message).build();
         //EventService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
-        if(!isEvent)
-        HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
+        //if(!isEvent)
+        //HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
     }
 
     public static buildPackageErrorList(pck: string): void {
@@ -36,7 +36,7 @@ export class BuildStreamService {
     public static sendPackageCompletedInfos(sfpPackage: SfpPackage): void {
         const file = BuildLoggerBuilder.getInstance().buildPackageCompletedInfos(sfpPackage).build();
         //EventService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
-        HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
+        //HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
     }
 
     public static buildPackageDependencies(pck: string, dependencies: BuildPackageDependencies): void {
@@ -145,7 +145,7 @@ class BuildLoggerBuilder {
                 packageDependencies: [],
             },
         };
-        HookService.getInstance().logEvent(this.file.payload.events[pck]);
+        //HookService.getInstance().logEvent(this.file.payload.events[pck]);
         return this;
     }
 
@@ -213,7 +213,7 @@ class BuildLoggerBuilder {
             if (value.event === 'sfpowerscripts.build.awaiting' || value.event === 'sfpowerscripts.build.progress') {
                 value.metadata.message.push(message);
                 value.event = 'sfpowerscripts.build.failed';
-                HookService.getInstance().logEvent(this.file.payload.events[value.metadata.package]);
+                //HookService.getInstance().logEvent(this.file.payload.events[value.metadata.package]);
             }
         });
         }

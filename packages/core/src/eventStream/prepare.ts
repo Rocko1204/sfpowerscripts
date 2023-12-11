@@ -49,6 +49,10 @@ export class PrepareStreamService {
         EventService.getInstance();
     }
 
+    public static buildJobAndOrgId(jobId: string,orgId: string ): void {
+        PrepareLoggerBuilder.getInstance().buildOrgAndJobId(orgId, jobId);
+    }
+
     public static closeServer(): void {
         const file = PrepareLoggerBuilder.getInstance().build();
         HookService.getInstance().logEvent(file);
@@ -63,6 +67,7 @@ class PrepareLoggerBuilder {
     private constructor() {
         this.file = {payload: {
             processName: PROCESSNAME.PREPARE,
+            instanceUrl: '',
             success: 0,
             failed: 0,
             status: 'inprogress',
@@ -73,7 +78,7 @@ class PrepareLoggerBuilder {
             externalDependencies: []
         },
         eventId: process.env.EVENT_STREAM_WEBHOOK_EVENTID,
-        eventType: 'sfpowerscripts.prepare'
+        jobId: ''
         };
     }
 
@@ -96,7 +101,7 @@ class PrepareLoggerBuilder {
 
     buildPoolDefinition(poolDefinition: PoolDefinition): PrepareLoggerBuilder {
         this.file.payload.poolDefinition = poolDefinition;
-        return this; 
+        return this;
     }
 
     buildPoolinfo(poolInfo: Poolinfo): PrepareLoggerBuilder {
@@ -123,6 +128,12 @@ class PrepareLoggerBuilder {
 
     buildExternalDependencies(externalDependency: ExternalDependency): PrepareLoggerBuilder {
         this.file.payload.externalDependencies.push(externalDependency);
+        return this;
+    }
+
+    buildOrgAndJobId(orgId: string, jobId: string): PrepareLoggerBuilder {
+        this.file.jobId = jobId;
+        this.file.payload.instanceUrl = orgId;
         return this;
     }
 

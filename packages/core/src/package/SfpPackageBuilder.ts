@@ -73,9 +73,7 @@ export default class SfpPackageBuilder {
 
         //Get Package Type
         sfpPackage.package_type = ProjectConfig.getPackageType(projectConfig, sfdx_package);
-
         sfpPackage = SfpPackageBuilder.handleVersionNumber(params, sfpPackage, packageCreationParams);
-
         // Requires destructiveChangesPath which is set by the property fetcher
         sfpPackage.workingDirectory = await SfpPackageContentGenerator.generateSfpPackageDirectory(
             logger,
@@ -171,7 +169,7 @@ export default class SfpPackageBuilder {
                 break;
             case PackageType.Diff:
                 packageCreationParams.revisionFrom = params.revisionFrom;
-                packageCreationParams.revisionTo = params.revisionTo; 
+                packageCreationParams.revisionTo = params.revisionTo;
                 createPackage = new CreateDiffPackageImp(
                     sfpPackage.workingDirectory,
                     sfpPackage,
@@ -230,7 +228,7 @@ export default class SfpPackageBuilder {
         return sfpPackage;
     }
 
-  
+
 
     private static isAllTestsToBeTriggered(sfpPackage: SfpPackage, logger: Logger) {
         if (

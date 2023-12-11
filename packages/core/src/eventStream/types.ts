@@ -19,7 +19,7 @@ export interface Context {
 
 // types for file logger prepare
 export interface PrepareHookSchema {
-    eventType: string;
+    jobId: string;
     eventId: string;
     payload: PrepareFile;
 }
@@ -34,6 +34,7 @@ export interface PrepareFile {
     poolInfo: Poolinfo;
     externalDependencies: ExternalDependency[];
     releaseConfig?: string[];
+    instanceUrl: string;
 }
 
 export interface Poolinfo {

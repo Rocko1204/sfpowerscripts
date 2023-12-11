@@ -191,7 +191,7 @@ export default class ReleaseDefinitionGenerator {
 
         //add promotePackagesBeforeDeploymentToOrg
         releaseDefinition.promotePackagesBeforeDeploymentToOrg = this.releaseDefinitionGeneratorConfigSchema.releasedefinitionProperties?.promotePackagesBeforeDeploymentToOrg;
-	    
+
         //override skip if already installed
         if(this.releaseDefinitionGeneratorConfigSchema.releasedefinitionProperties?.skipIfAlreadyInstalled)
           releaseDefinition.skipIfAlreadyInstalled = this.releaseDefinitionGeneratorConfigSchema.releasedefinitionProperties?.skipIfAlreadyInstalled;

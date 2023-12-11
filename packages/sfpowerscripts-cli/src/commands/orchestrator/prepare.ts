@@ -44,6 +44,10 @@ export default class Prepare extends SfpowerscriptsCommand {
             description: messages.getMessage('npmrcPathFlagDescription'),
             required: false,
         }),
+        jobid: Flags.string({
+            char: 'j',
+            description: messages.getMessage('jobIdFlagDescription'),
+        }),
         keys: Flags.string({
             required: false,
             description: messages.getMessage('keysDescription'),
@@ -60,6 +64,8 @@ export default class Prepare extends SfpowerscriptsCommand {
         let executionStartTime = Date.now();
 
         PrepareStreamService.startServer();
+
+        PrepareStreamService.buildJobAndOrgId(this.flags.jobid,this.hubOrg?.getConnection().getAuthInfoFields().instanceUrl);
 
         SFPLogger.log(COLOR_HEADER(`command: ${COLOR_KEY_MESSAGE(`prepare`)}`));
 

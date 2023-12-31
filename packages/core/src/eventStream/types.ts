@@ -156,7 +156,7 @@ export interface BuildPackageDependencies {
 
 export interface BuildPackageMetadata {
     package: string;
-    message: string[];
+    message: string;
     elapsedTime: number;
     reasonToBuild: string;
     lastKnownTag: string;
@@ -341,7 +341,7 @@ export interface ReleasePackageDetails {
 
 export interface ReleasePackageMetadata {
     package: string;
-    message: string[];
+    message: string;
     elapsedTime: number;
     reasonToBuild: string;
     type: string;

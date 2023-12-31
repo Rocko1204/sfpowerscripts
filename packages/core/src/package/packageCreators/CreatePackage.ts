@@ -21,7 +21,6 @@ export abstract class CreatePackage {
     public async exec(): Promise<SfpPackage> {
         //Capture Start TimegetSFDXProjectConfig
         this.startTime = Date.now();
-        BuildStreamService.buildPackageStatus(this.sfpPackage.package_name, 'inprogress');
         //Print Header
         this.printHeader();
 
@@ -49,7 +48,6 @@ export abstract class CreatePackage {
 
     private sendMetricsWhenSuccessfullyCreated() {
         let elapsedTime = Date.now() - this.startTime;
-        BuildStreamService.buildPackageStatus(this.sfpPackage.package_name, 'success', elapsedTime);
 
         this.sfpPackage.creation_details = {
             creation_time: elapsedTime,

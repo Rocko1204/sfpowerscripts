@@ -105,7 +105,7 @@ export default class CreateUnlockedPackageImplEvent extends CreatePackage {
             targetPackageDir['unpackagedMetadata'] = { path: path.join(this.workingDirectory, 'unpackagedMetadata') };
 
 
-        return PackageVersion.create(
+        let result = await PackageVersion.create(
             {
                 connection: this.devhubOrg.getConnection(),
                 project: sfProject,
@@ -118,11 +118,16 @@ export default class CreateUnlockedPackageImplEvent extends CreatePackage {
                     this.packageCreationParams.isCoverageEnabled && !this.isOrgDependentPackage ? true : false,
                 versionnumber: sfpPackage.versionNumber,
                 definitionfile: path.join(this.workingDirectory, this.params.configFilePath),
-                packageId: this.sfpPackage.packageName,
-                branch: this.sfpPackage.branch
+                packageId: this.sfpPackage.packageName
             },
             { timeout: Duration.minutes(240), frequency: Duration.seconds(30) }
         );
+
+        sfpPackage.package_version_id = result.SubscriberPackageVersionId;
+        sfpPackage.has_passed_coverage_check = result.HasPassedCodeCoverageCheck;
+        sfpPackage.test_coverage = result.CodeCoverage ?? 0;
+
+        return result;
     }
 
     postCreatePackage(sfpPackage: SfpPackage) {

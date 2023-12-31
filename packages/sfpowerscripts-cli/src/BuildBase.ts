@@ -26,6 +26,9 @@ import ReleaseConfig from './impl/release/ReleaseConfig';
 import { Flags } from '@oclif/core';
 import { loglevel, orgApiVersionFlagSfdxStyle, targetdevhubusername } from './flags/sfdxflags';
 import { BuildStreamService } from '@dxatscale/sfpowerscripts.core/lib/eventStream/build';
+import { ReleaseDefinition } from '@dxatscale/sfpowerscripts.core/lib/package/packageGenerator/types';
+import * as yaml from 'js-yaml';
+const path = require('path');
 
 
 // Initialize Messages with the current plugin directory
@@ -94,6 +97,7 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
             char: 'j',
             description: messages.getMessage('jobIdFlagDescription'),
         }),
+
     };
 
     public async execute() {
@@ -156,7 +160,7 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                 return;
             }
 
-            SFPLogger.log(`${EOL}${EOL}`);
+            /*SFPLogger.log(`${EOL}${EOL}`);
             SFPLogger.log('Generating Artifacts and Tags....');
 
             for (let generatedPackage of buildExecResult.generatedPackages) {
@@ -166,7 +170,7 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                     SFPLogger.log(error.message);
                     artifactCreationErrors.push(generatedPackage.packageName);
                 }
-            }
+            }*/
 
             totalElapsedTime = Date.now() - executionStartTime;
 
@@ -212,6 +216,17 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                     },
                 };
 
+                const releaseDefinition: ReleaseDefinition = {
+                    release: 'Build',
+                    skipIfAlreadyInstalled: true,
+                    promotePackagesBeforeDeploymentToOrg: 'edg-preprod',
+                    artifacts: {},
+                    changelog: {
+                        workItemFilter: "DSPPRO-[0-9]{4,6}|DAOPS-[0-9]{3,6}",
+                        workItemUrl: "https://jira.eon.com/browse/",
+                    },
+                };
+
                 for (let generatedPackage of buildExecResult.generatedPackages) {
                     buildResult['packages'].push({
                         name: generatedPackage['packageName'],
@@ -219,6 +234,12 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                         elapsed_time: generatedPackage['creation_details']?.creation_time,
                         status: 'succeeded',
                     });
+                    releaseDefinition.artifacts[generatedPackage['packageName']] = 'main'
+                }
+
+                if(buildExecResult?.generatedPackages.length > 0 && buildExecResult?.failedPackages?.length === 0){
+                    const yamlReleaseDefinition = yaml.dump(releaseDefinition);
+                    await fs.promises.writeFile(path.join(path.resolve(), 'build-release-definition.yml'), yamlReleaseDefinition, 'utf8');
                 }
 
                 for (let failedPackage of buildExecResult.failedPackages) {
@@ -236,6 +257,11 @@ export default abstract class BuildBase extends SfpowerscriptsCommand {
                 buildResult['summary'].succeeded = buildExecResult.generatedPackages.length;
                 buildResult['summary'].failed = buildExecResult.failedPackages.length;
                 BuildStreamService.sendStatistics(buildResult['summary'].scheduled_packages,buildResult['summary'].succeeded,buildResult['summary'].failed,buildResult['summary'].elapsed_time)
+
+
+                if(buildExecResult.generatedPackages.length > 0){
+
+                }
 
                 BuildStreamService.writeArtifatcs();
             }

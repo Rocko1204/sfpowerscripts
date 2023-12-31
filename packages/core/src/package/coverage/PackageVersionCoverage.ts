@@ -20,7 +20,7 @@ export default class PackageVersionCoverage {
 
             SFPLogger.log(
                 `Successfully Retrieved the Apex Test Coverage of the package version`,
-                LoggerLevel.INFO,
+                LoggerLevel.TRACE,
                 this.logger
             );
         } else {

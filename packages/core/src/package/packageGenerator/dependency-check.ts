@@ -5,7 +5,7 @@ import SFPLogger, { LoggerLevel, COLOR_KEY_VALUE, COLOR_TRACE,COLOR_ERROR } from
 export default class DependencyCheck {
   public async run(tagMap: Map<string, string[]>, packageCharacterMap: Map<string, PackageCharacter>): Promise<void> {
     SFPLogger.log(
-      COLOR_KEY_VALUE(
+      COLOR_TRACE(
         'Now check the packages with dependency changes. The result determines the order in the unlocked build job.',
       ),LoggerLevel.INFO,
     )

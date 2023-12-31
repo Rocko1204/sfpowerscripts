@@ -12,7 +12,7 @@ const Table = require('cli-table');
 import SFPLogger, {
     COLOR_KEY_VALUE,
     COLOR_TRACE,
-    COLOR_WARNING,
+    COLOR_INFO,
     ConsoleLogger,
     FileLogger,
     LoggerLevel,
@@ -41,6 +41,9 @@ import { delay } from '@dxatscale/sfpowerscripts.core/lib/utils/Delay';
 import { Connection } from '@salesforce/core';
 import { Schema } from 'jsforce';
 import pQueue from 'p-queue';
+import { BuildStreamService } from '@dxatscale/sfpowerscripts.core/lib/eventStream/build';
+import Promote from '../../commands/orchestrator/publish';
+import ArtifactGenerator from '@dxatscale/sfpowerscripts.core/lib/artifacts/generators/ArtifactGenerator';
 
 const PRIORITY_UNLOCKED_PKG_WITH_DEPENDENCY = 1;
 const PRIORITY_UNLOCKED_PKG_WITHOUT_DEPENDENCY = 3;
@@ -60,6 +63,8 @@ export interface BuildProps {
     executorcount: number;
     isBuildAllAsSourcePackages: boolean;
     branch?: string;
+    jobId?: string; //eventStream
+    artifactdir?: string; // build/publish
     currentStage: Stage;
     baseBranch?: string;
     diffOptions?: PackageDiffOptions;
@@ -112,6 +117,8 @@ export default class BuildImplEvents {
         let git = await Git.initiateRepo(new ConsoleLogger());
         this.repository_url = await git.getRemoteOriginUrl(this.props.repourl);
         this.commit_id = await git.getHeadCommit();
+        BuildStreamService.buildProps(this.props);
+        BuildStreamService.buildJobAndOrgId(this.props.jobId, this.sfpOrg?.getConnection().getAuthInfoFields().instanceUrl,this.props.devhubAlias,this.commit_id);
 
         this.packagesToBeBuilt = this.getPackagesToBeBuilt(this.props.projectDirectory, this.props.includeOnlyPackages);
 
@@ -132,23 +139,34 @@ export default class BuildImplEvents {
         Check if diff check is enabled, if so, then filter packages to be built based on the diff check
        *************************************************************************************************************************************************/
         if (this.props.isDiffCheckEnabled) {
-            const buildGeneration = new BuildGeneration();
+            const buildGeneration = new BuildGeneration(this.props.devhubAlias, this.props.branch);
             packageCharacterMap = await buildGeneration.run(this.packagesToBeBuilt);
             table = this.createDiffPackageScheduledDisplayedAsATable(packageCharacterMap);
             this.packagesToBeBuilt = Array.from(packageCharacterMap.keys()); //Assign it back to the instance variable
         } else {
             table = this.createAllPackageScheduledDisplayedAsATable();
         }
+
         //Log Packages to be built
         SFPLogger.log(COLOR_KEY_MESSAGE('Packages scheduled for build'));
         SFPLogger.log(table.toString());
 
         //Fix transitive dependency gap
-        let groupDependencyResolutionLogs = new GroupConsoleLogs('Resolving dependencies', this.logger).begin();
+        SFPLogger.log(
+            COLOR_TRACE(
+                'Resolving dependencies from project config'
+            ),
+            LoggerLevel.INFO
+        );
         this.projectConfig = await this.resolvePackageDependencies(this.projectConfig);
-        groupDependencyResolutionLogs.end();
+ 
 
-        let buildPackagesLogs = new GroupConsoleLogs('Building Packages', this.logger).begin();
+        SFPLogger.log(
+            COLOR_TRACE(
+                'Building Packages'
+            ),
+            LoggerLevel.INFO
+        );
 
         for await (const pkg of this.packagesToBeBuilt) {
             let type = this.getPriorityandTypeOfAPackage(this.projectConfig, pkg).type;
@@ -172,6 +190,12 @@ export default class BuildImplEvents {
          This part builds all packages from the repo because the flag isDiffCheckEnabled is false
         *************************************************************************************************************************************************/
         if (!this.props.isDiffCheckEnabled) {
+            SFPLogger.log(
+                COLOR_HEADER(
+                    '3️⃣  Build all packages without validation...'
+                ),
+                LoggerLevel.INFO
+            );
             if (!this.props.isQuickBuild && this.sfpOrg) {
                 const packageDependencyResolver = new PackageDependencyResolver(
                     this.sfpOrg.getConnection(),
@@ -183,12 +207,15 @@ export default class BuildImplEvents {
 
             for (const pkg of this.packagesToBeBuilt) {
                 SFPLogger.log(COLOR_KEY_MESSAGE(`📦 Package creation initiated for 👉 ${pkg}`));
+                BuildStreamService.buildPackageStatus(pkg,'inprogress');
                 let type = this.getPriorityandTypeOfAPackage(this.projectConfig, pkg).type;
                 q.add(() =>
                     this.createPackage(type, pkg, this.props.isBuildAllAsSourcePackages)
                         .then(async (sfpPackage) => {
                             this.generatedPackages.push(sfpPackage);
                             this.printPackageDetails(sfpPackage);
+                            await ArtifactGenerator.generateArtifact(sfpPackage, process.cwd(), this.props.artifactdir)
+                            await Promote.getInstance().promote(pkg, this.props.artifactdir)
                             SFPStatsSender.logCount('build.succeeded.packages', {
                                 package: pkg,
                                 type: type,
@@ -214,10 +241,16 @@ export default class BuildImplEvents {
         /*************************************************************************************************************************************************
          This part builds all packages with diff check enabled
         *************************************************************************************************************************************************/
-
+        
         /*************************************************************************************************************************************************
          First build source and data packages
         *************************************************************************************************************************************************/
+         SFPLogger.log(
+            COLOR_HEADER(
+                '3️⃣  Build all source/data/diff packages where changes were found in the git diff check...'
+            ),
+            LoggerLevel.INFO
+         );
         // create initial build lists
         for (const [packageName, packageCharacter] of packageCharacterMap) {
             if (packageCharacter.hasError && !this.failedPackages.includes(packageName)) {
@@ -232,11 +265,14 @@ export default class BuildImplEvents {
             ) {
                 
                 SFPLogger.log(COLOR_KEY_MESSAGE(`📦 Package creation initiated for 👉 ${packageName}`));
+                BuildStreamService.buildPackageStatus(packageName,'inprogress');
                 q.add(() =>
                     this.createPackage(packageCharacter.type, packageName, this.props.isBuildAllAsSourcePackages)
                         .then(async (sfpPackage) => {
                             this.generatedPackages.push(sfpPackage);
                             this.printPackageDetails(sfpPackage);
+                            await ArtifactGenerator.generateArtifact(sfpPackage, process.cwd(), this.props.artifactdir)
+                            await Promote.getInstance().promote(packageName, this.props.artifactdir)
                             SFPStatsSender.logCount('build.succeeded.packages', {
                                 package: packageName,
                                 type: packageCharacter.type,
@@ -257,6 +293,12 @@ export default class BuildImplEvents {
         /*************************************************************************************************************************************************
          Now build all unlocked packages with dependencies, fill the queue and listen to the lifecycle events from @salesforce/packaging
         *************************************************************************************************************************************************/
+         SFPLogger.log(
+            COLOR_HEADER(
+                '4️⃣  Build all unlocked packages where changes were found in the git diff check with validation flag enabeled...'
+            ),
+            LoggerLevel.INFO
+         );
         for (const [packageName, packageCharacter] of packageCharacterMap) {
             // check if the deps package has error , then the main will not be created and the main get the error message from deps
             if (packageCharacter.type === 'unlocked' && packageCharacter.hasError) {
@@ -272,7 +314,7 @@ export default class BuildImplEvents {
                 packageCharacter.buildDeps.length > 0
             ) {
                 SFPLogger.log(
-                    COLOR_KEY_VALUE(
+                    COLOR_INFO(
                         `⏳ Put package ${packageName} in queue because it needs to wait for this dependecies: ${packageCharacter.buildDeps.toString()}`
                     ),
                     LoggerLevel.INFO
@@ -285,17 +327,12 @@ export default class BuildImplEvents {
                 packageCharacter.buildDeps.length === 0
             ) {
                 SFPLogger.log(COLOR_KEY_MESSAGE(`📦 Package creation initiated for 👉 ${packageName}`));
+                BuildStreamService.buildPackageStatus(packageName,'inprogress');
                 q.add(() =>
                     this.createPackage(packageCharacter.type, packageName, this.props.isBuildAllAsSourcePackages)
                         .then(async (sfpPackage) => {
-                            if (packageCharacter.subscriberPackageId) {
-                                sfpPackage.package_version_id = packageCharacter.subscriberPackageId;
-                                await this.getPackageInfo(sfpPackage, this.sfpOrg.getConnection());
-                                if (
-                                    this.packageTypeInfos.find((item) => item.Name === packageName).IsOrgDependent !==
-                                        'Yes' &&
-                                    !this.props.isQuickBuild
-                                ) {
+                            if (sfpPackage.package_version_id) {
+                                packageCharacter.subscriberPackageId = sfpPackage.package_version_id;
                                     if (!sfpPackage.has_passed_coverage_check) {
                                         packageCharacter.hasError = true;
                                         packageCharacter.errorMessages =
@@ -304,9 +341,12 @@ export default class BuildImplEvents {
                                             'This package has not meet the minimum coverage requirement of 75%',
                                             packageName
                                         );
+                                        this.removeUnlockedPckFromQueue(packageName, `This package has not meet the minimum coverage requirement of 75%`, packageCharacterMap);
                                     } else {
                                         this.generatedPackages.push(sfpPackage);
                                         this.printPackageDetails(sfpPackage);
+                                        await ArtifactGenerator.generateArtifact(sfpPackage, process.cwd(), this.props.artifactdir)
+                                        await Promote.getInstance().promote(packageName, this.props.artifactdir)
                                         SFPStatsSender.logCount('build.succeeded.packages', {
                                             package: packageName,
                                             type: packageCharacter.type,
@@ -315,7 +355,7 @@ export default class BuildImplEvents {
                                             pr_mode: String(this.props.isBuildAllAsSourcePackages),
                                         });
                                     }
-                                }
+                                
                             } else {
                                 if(!packageCharacter.hasError){
                                 packageCharacter.hasError = true;
@@ -372,7 +412,7 @@ export default class BuildImplEvents {
                 }
                 let errorMessage = '<empty>';
                 if (results?.Error?.length) {
-                    errorMessage = 'Creation errors: ';
+                    errorMessage = 'Unlocked package creation errors: ';
                     for (let i = 0; i < results?.Error?.length; i++) {
                         errorMessage += `\n${i + 1}) ${results?.Error[i]}`;
                     }
@@ -394,20 +434,15 @@ export default class BuildImplEvents {
         Lifecycle.getInstance().on(
             PackageVersionEvents.create.success,
             async (results: PackageVersionCreateReportProgress) => {
-                const packageTypeInfo = this.packageTypeInfos.find((item) => item.Id === results.Package2Id);
-                if (!packageTypeInfo.Name) {
-                    throw new Error(`Unable to find package type info for package id ${results.Package2Id}`);
-                }
-                packageCharacterMap.get(packageTypeInfo.Name).subscriberPackageId = results.SubscriberPackageVersionId;
                 // now check if we can add a new package from thr queue to the job
                 for (const [packageName, packageCharacter] of packageCharacterMap) {
                     if (
-                        packageCharacter.type === 'unlocked' &&
+                        packageCharacter.type === 'unlocked' && results.SubscriberPackageVersionId && results.HasPassedCodeCoverageCheck &&
                         !packageCharacter.hasError &&
-                        packageCharacter.buildDeps.includes(packageTypeInfo.Name)
+                        packageCharacter.buildDeps.includes(results.Package2Name)
                     ) {
                         // found a dependend package which is now finished
-                        const index = packageCharacter.buildDeps.indexOf(packageTypeInfo.Name);
+                        const index = packageCharacter.buildDeps.indexOf(results.Package2Name);
                         if (index > -1) {
                             // so we can remove the depenendency
                             packageCharacter.buildDeps.splice(index, 1);
@@ -415,6 +450,7 @@ export default class BuildImplEvents {
                         if (packageCharacter.buildDeps.length === 0) {
                             // no deps left, so we can create the package
                             SFPLogger.log(COLOR_KEY_MESSAGE(`📦 Package creation initiated for 👉 ${packageName}`));
+                            BuildStreamService.buildPackageStatus(packageName,'inprogress');
                             q.add(() =>
                                 this.createPackage(
                                     packageCharacter.type,
@@ -422,14 +458,8 @@ export default class BuildImplEvents {
                                     this.props.isBuildAllAsSourcePackages
                                 )
                                     .then(async (sfpPackage) => {
-                                        if (packageCharacter.subscriberPackageId) {
-                                            sfpPackage.package_version_id = packageCharacter.subscriberPackageId;
-                                            await this.getPackageInfo(sfpPackage, this.sfpOrg.getConnection());
-                                            if (
-                                                this.packageTypeInfos.find((item) => item.Name === packageName)
-                                                    .IsOrgDependent !== 'Yes' &&
-                                                !this.props.isQuickBuild
-                                            ) {
+                                        if (sfpPackage.package_version_id) {
+                                            packageCharacter.subscriberPackageId = sfpPackage.package_version_id;
                                                 if (!sfpPackage.has_passed_coverage_check) {
                                                     packageCharacter.hasError = true;
                                                     packageCharacter.errorMessages =
@@ -438,9 +468,12 @@ export default class BuildImplEvents {
                                                         'This package has not meet the minimum coverage requirement of 75%',
                                                         packageName
                                                     );
+                                                    this.removeUnlockedPckFromQueue(packageName, `This package has not meet the minimum coverage requirement of 75%`, packageCharacterMap);
                                                 } else {
                                                     this.generatedPackages.push(sfpPackage);
                                                     this.printPackageDetails(sfpPackage);
+                                                    await ArtifactGenerator.generateArtifact(sfpPackage, process.cwd(), this.props.artifactdir)
+                                                    await Promote.getInstance().promote(packageName, this.props.artifactdir)
                                                     SFPStatsSender.logCount('build.succeeded.packages', {
                                                         package: packageName,
                                                         type: packageCharacter.type,
@@ -451,7 +484,7 @@ export default class BuildImplEvents {
                                                         pr_mode: String(this.props.isBuildAllAsSourcePackages),
                                                     });
                                                 }
-                                            }
+                                            
                                         } else {
                                             packageCharacter.hasError = true;
                                             packageCharacter.errorMessages = `The build for this package was not completed in the wait time 240 minutes.`;
@@ -483,8 +516,6 @@ export default class BuildImplEvents {
 
         //###############################end new build logic ###########################################
 
-        buildPackagesLogs.end();
-
         return {
             generatedPackages: this.generatedPackages,
             failedPackages: this.failedPackages,
@@ -509,7 +540,7 @@ export default class BuildImplEvents {
                     LoggerLevel.INFO
                 );
                 this.handlePackageError(
-                    `Dependend package with errors ${packageName}:\n ${errorMsg}`,
+                    `Dependend package with errors:/n Package: ${packageName}:\n ${errorMsg}`,
                     packageNameDep
                 );
                 packageCharacterMap.get(packageNameDep).hasError = true;
@@ -537,6 +568,7 @@ export default class BuildImplEvents {
                 packagesToBeBuilt.get(pkg).reason,
                 packagesToBeBuilt.get(pkg).tag ? packagesToBeBuilt.get(pkg).tag : '',
             ];
+            BuildStreamService.buildPackageInitialitation(pkg,packagesToBeBuilt.get(pkg).reason, packagesToBeBuilt.get(pkg)?.tag);
             if (this.isMultiConfigFilesEnabled && this.props.currentStage == Stage.BUILD) {
                 item.push(
                     this.scratchOrgDefinitions[pkg] ? this.scratchOrgDefinitions[pkg] : this.props.configFilePath
@@ -563,6 +595,7 @@ export default class BuildImplEvents {
         });
         for (const pkg of this.packagesToBeBuilt) {
             let item = [pkg, 'Activated as part of all package build'];
+            BuildStreamService.buildPackageInitialitation(pkg,'Activated as part of all package build','');
             if (this.isMultiConfigFilesEnabled && this.props.currentStage == Stage.BUILD) {
                 item.push(
                     this.scratchOrgDefinitions[pkg] ? this.scratchOrgDefinitions[pkg] : this.props.configFilePath
@@ -634,6 +667,21 @@ export default class BuildImplEvents {
     private handlePackageError(reason: any, pkg: string): any {
         SFPLogger.printHeaderLine('', COLOR_HEADER, LoggerLevel.INFO);
         SFPLogger.log(COLOR_ERROR(`Package Creation Failed for ${pkg}, Here are the details:`));
+        const sfpPackageMain:SfpPackage = {
+			projectDirectory: this.props.projectDirectory, packageDirectory: pkg,
+			workingDirectory: "",
+			mdapiDir: "",
+			destructiveChangesPath: "",
+			resolvedPackageDirectory: "",
+			version: "",
+			packageName: "",
+			versionNumber: "",
+			packageType: "",
+			toJSON() {
+				return this;
+			},
+			package_name: pkg
+		}; 
         try {
             // Append error to log file
             let errorMessage = typeof reason === 'string' ? reason : reason.message;
@@ -649,6 +697,8 @@ export default class BuildImplEvents {
             fs.appendFileSync(pathToMarkDownFile, data);
 
             SFPLogger.log(data);
+            BuildStreamService.sendPackageError(sfpPackageMain,errorMessage);
+            BuildStreamService.buildPackageErrorList(pkg);
         } catch (e) {
             SFPLogger.log(`Unable to display logs for pkg ${pkg}`);
             console.log(e);
@@ -720,7 +770,9 @@ export default class BuildImplEvents {
         Print all package infos after successfully build job
     *************************************************************************************************************************************************/
 
-    private printPackageDetails(sfpPackage: SfpPackage) {
+    private async printPackageDetails(sfpPackage: SfpPackage) {
+        BuildStreamService.buildPackageSuccessList(sfpPackage.packageName);
+		BuildStreamService.sendPackageCompletedInfos(sfpPackage);
         SFPLogger.log(
             COLOR_HEADER(
                 `${EOL}${sfpPackage.packageName} package created in ${getFormattedTime(
@@ -948,7 +1000,7 @@ export default class BuildImplEvents {
         while (count < 10) {
             count++;
             try {
-                SFPLogger.log('Fetching Version Number and Coverage details', LoggerLevel.INFO, this.logger);
+                SFPLogger.log(COLOR_TRACE('Fetching Version Number and Coverage details'), LoggerLevel.TRACE);
 
                 let pkgInfoResult = await packageVersionCoverage.getCoverage(sfpPackage.package_version_id);
 

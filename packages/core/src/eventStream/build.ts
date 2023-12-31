@@ -10,7 +10,9 @@ export class BuildStreamService {
 
     public static sendPackageError(sfpPackage: SfpPackage, message: string, isEvent?: boolean): void {
         const file = BuildLoggerBuilder.getInstance().buildPackageError(sfpPackage, message).build();
-        if (!isEvent) HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
+        if (!isEvent) {
+        HookService.getInstance().logEvent(file.payload.events[sfpPackage.package_name]);
+        }
     }
 
     public static buildPackageErrorList(pck: string): void {
@@ -121,7 +123,7 @@ class BuildLoggerBuilder {
 
     buildPackageInitialitation(pck: string, reason: string, tag: string): BuildLoggerBuilder {
         this.file.payload.events[pck] = {
-            event: 'sfpowerscripts.build.progress',
+            event: 'sfpowerscripts.build.awaiting',
             context: {
                 command: 'sfpowerscript:orchestrator:build',
                 eventId: `${this.file.jobId}_${Date.now().toString()}`,
@@ -135,7 +137,7 @@ class BuildLoggerBuilder {
             },
             metadata: {
                 package: pck,
-                message: [],
+                message: '',
                 elapsedTime: 0,
                 reasonToBuild: reason,
                 lastKnownTag: tag,
@@ -176,7 +178,7 @@ class BuildLoggerBuilder {
         this.file.payload.events[sfpPackage.package_name].metadata.type = sfpPackage.package_type;
         this.file.payload.events[sfpPackage.package_name].context.timestamp = new Date();
         if (message) {
-            this.file.payload.events[sfpPackage.package_name].metadata.message.push(message);
+            this.file.payload.events[sfpPackage.package_name].metadata.message = message;
         }
         return this;
     }
@@ -220,7 +222,7 @@ class BuildLoggerBuilder {
                     value.event === 'sfpowerscripts.build.awaiting' ||
                     value.event === 'sfpowerscripts.build.progress'
                 ) {
-                    value.metadata.message.push(message);
+                    value.metadata.message = message;
                     value.event = 'sfpowerscripts.build.failed';
                     //HookService.getInstance().logEvent(this.file.payload.events[value.metadata.package]);
                 }
@@ -254,6 +256,9 @@ class BuildLoggerBuilder {
             status === 'success' ? 'sfpowerscripts.build.success' : 'sfpowerscripts.build.progress';
         if (elapsedTime) {
             this.file.payload.events[pck].metadata.elapsedTime = elapsedTime;
+        }
+        if(status === 'inprogress') { //### lifecycle hooks ### 
+        HookService.getInstance().logEvent(this.file.payload.events[pck]);
         }
         return this;
     }

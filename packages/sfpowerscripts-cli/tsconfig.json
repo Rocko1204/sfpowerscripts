@@ -5,5 +5,5 @@
         "rootDir": "./src",
         "skipLibCheck": true
     },
-    "exclude": ["node_modules", "dist", "tests"]
+    "exclude": ["**/*.d.ts","node_modules", "dist", "tests"]
 }

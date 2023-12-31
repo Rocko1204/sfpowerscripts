@@ -137,7 +137,7 @@ class ReleaseLoggerBuilder {
         type: string
     ): ReleaseLoggerBuilder {
         this.file.payload.events[pck] = {
-            event: 'sfpowerscripts.release.progress',
+            event: 'sfpowerscripts.release.awaiting',
             context: {
                 command: 'sfpowerscript:orchestrator:release',
                 instanceUrl: this.file.payload.instanceUrl,
@@ -151,7 +151,7 @@ class ReleaseLoggerBuilder {
             },
             metadata: {
                 package: pck,
-                message: [],
+                message: '',
                 elapsedTime: 0,
                 reasonToBuild: '',
                 type: type,
@@ -201,7 +201,7 @@ class ReleaseLoggerBuilder {
         this.file.payload.events[pck].event = 'sfpowerscripts.release.failed';
         this.file.payload.events[pck].context.timestamp = new Date();
         if (message) {
-            this.file.payload.events[pck].metadata.message.push(message);
+            this.file.payload.events[pck].metadata.message += `${message}\n`;
         }
         return this;
     }
@@ -226,8 +226,9 @@ class ReleaseLoggerBuilder {
 
     buildDeployErrorsMsg(deployError: ReleaseDeployError): ReleaseLoggerBuilder {
         Object.values(this.file.payload.events).forEach((value) => {
-            if (value.event === 'sfpowerscripts.release.awaiting' || value.event === 'sfpowerscripts.release.failed') {
+            if (value.event !== 'sfpowerscripts.release.success') {
                 value.metadata.deployErrors.push(deployError);
+                value.metadata.message += `${deployError.metadataType} -> ${deployError.apiName} -> ${deployError.problemType} -> ${deployError.problem}\n`;
             }
         });
         return this;

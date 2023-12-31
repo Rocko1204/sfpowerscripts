@@ -193,6 +193,7 @@ export default class Release extends SfpowerscriptsCommand {
             process.exitCode = 1;
         } finally {
             let totalElapsedTime: number = Date.now() - executionStartTime;
+            ReleaseStreamService.writeArtifatcs();
 
             if (releaseResult) {
                 this.printReleaseSummary(releaseResult, totalElapsedTime);

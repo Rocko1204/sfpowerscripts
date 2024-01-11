@@ -1,6 +1,6 @@
 {
     "name": "@dxatscale/sfpowerscripts.core",
-    "version": "50.3.0",
+    "version": "50.3.2",
     "description": "Core Module used by sfpowerscripts",
     "main": "lib/index",
     "types": "lib/index",
@@ -27,7 +27,7 @@
         "@salesforce/apex-node": "2.1.0",
         "@salesforce/core": "5.3.9",
         "@salesforce/kit": "3.0.13",
-        "@salesforce/packaging": "6.0.0",
+        "@salesforce/packaging": "6.0.2",
         "@salesforce/source-deploy-retrieve": "9.7.24",
         "@salesforce/source-tracking": "4.2.16",
         "adm-zip": "^0.5.6",

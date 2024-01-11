@@ -125,12 +125,13 @@ export default class CreateUnlockedPackageImplEvent extends CreatePackage {
 
         sfpPackage.package_version_id = result.SubscriberPackageVersionId;
         sfpPackage.has_passed_coverage_check = result.HasPassedCodeCoverageCheck;
+        sfpPackage.package_version_number = result.VersionNumber;
         sfpPackage.test_coverage = result.CodeCoverage ?? 0;
 
         return result;
     }
 
-    postCreatePackage(sfpPackage: SfpPackage) {
+    postCreatePackage(sfpPackage: SfpPackage) { 
         //copy the original config back as existing one would have cleaned up
         fs.copyFileSync(
             path.join(this.workingDirectory, 'sfdx-project-bak.json'),
